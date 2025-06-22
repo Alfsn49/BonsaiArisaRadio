@@ -8,20 +8,25 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
 socketio = SocketIO(app)
 
-# 🗃️ Base de datos: crear si no existe
 def init_db():
-    if not os.path.exists('pedidos.db'):
-        with sqlite3.connect('pedidos.db') as conn:
-            conn.execute('''
-                CREATE TABLE pedidos (
-                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT,
-                    cancion TEXT,
-                    dedicatoria TEXT,
-                   artista TEXT,
-                    fecha_hora TEXT
-                )
-            ''')
+    if os.path.exists('pedidos.db'):
+        os.remove('pedidos.db')  # Elimina el archivo anterior
+
+    with sqlite3.connect('pedidos.db') as conn:
+        conn.execute('''
+            CREATE TABLE pedidos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT,
+                cancion TEXT,
+                dedicatoria TEXT,
+                artista TEXT,
+                fecha_hora TEXT
+            )
+        ''')
+
+# Llamamos a init_db aquí para que se ejecute al importar el módulo,
+# es decir, cuando Gunicorn o cualquier otro servidor arranque la app
+init_db()
 
 @app.route('/')
 def index():
@@ -29,8 +34,7 @@ def index():
         pedidos = conn.execute(
             'SELECT nombre, cancion, dedicatoria, artista, fecha_hora FROM pedidos ORDER BY id DESC'
         ).fetchall()
-     
-    # Leer las imágenes del slider desde static/img
+
     ruta_imgs = os.path.join(app.static_folder, 'img')
     imagenes = [f'img/{img}' for img in sorted(os.listdir(ruta_imgs)) if img.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
     return render_template('index.html', pedidos=pedidos, imagenes=imagenes)
@@ -59,7 +63,6 @@ def pedido():
     })
     return '', 204
 
-
 if __name__ == '__main__':
-    init_db()
+    # Solo se ejecuta si arrancas la app con python app.py directamente (útil para desarrollo)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

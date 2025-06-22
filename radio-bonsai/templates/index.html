@@ -22,9 +22,12 @@
         <!-- Slider -->
         <div class="w-full max-h-[320px] aspect-video bg-black overflow-hidden rounded-lg shadow-lg flex items-center justify-center">
           <img id="sliderImage"
-               src="{{ url_for('static', filename=imagenes[0]) }}"
-               class="h-full w-auto object-contain transition-opacity duration-500 ease-in-out"
-               alt="Imagen Slider" />
+     src="{{ url_for('static', filename=imagenes[0]) }}"
+     class="h-full w-auto object-contain transition-opacity duration-500 ease-in-out"
+     alt="Imagen Slider"
+     loading="lazy"
+     decoding="async"
+/>
         </div>
 
         <!-- Reproductor radio -->
@@ -71,22 +74,34 @@
     </div>
   </div>
 
-  <!-- Slider JS -->
-  <script>
-    const sliderImage = document.getElementById('sliderImage');
-    const imagenes = {{ imagenes | tojson }};
-    let index = 0;
+ <script>
+  const sliderImage = document.getElementById('sliderImage');
+  const imagenes = {{ imagenes | tojson }};
+  let index = 0;
 
-    setInterval(() => {
-      index = (index + 1) % imagenes.length;
-      sliderImage.style.opacity = 0;
-      setTimeout(() => {
-        sliderImage.src = `/static/${imagenes[index]}`;
-        sliderImage.style.opacity = 1;
-      }, 300);
-    }, 4000);
-  </script>
+  const cambiarImagen = () => {
+    index = (index + 1) % imagenes.length;
+    const nuevaImagen = new Image();
+    const nuevaSrc = `/static/${imagenes[index]}`;
 
+    sliderImage.style.opacity = 0;
+
+    nuevaImagen.onload = () => {
+      sliderImage.src = nuevaSrc;
+      sliderImage.style.opacity = 1;
+    };
+
+    nuevaImagen.onerror = () => {
+      console.error('⚠️ No se pudo cargar la imagen:', nuevaSrc);
+      // Intentar con la siguiente imagen en 1 segundo
+      setTimeout(cambiarImagen, 1000);
+    };
+
+    nuevaImagen.src = nuevaSrc;
+  };
+
+  setInterval(cambiarImagen, 4000);
+</script>
   <!-- SocketIO -->
   <script>
     const form = document.getElementById('pedidoForm');
@@ -104,7 +119,7 @@
       const div = document.createElement('div');
       div.className = "bg-white dark:bg-gray-800 text-black dark:text-white p-3 rounded shadow";
       div.innerHTML = `
-        <strong>${data.cancion}</strong> — pedido por ${data.nombre}<br/>
+        <strong>${data.cancion}</strong> - ${data.artista} — pedido por ${data.nombre}<br/>
         ${data.dedicatoria ? `<em>"${data.dedicatoria}"</em><br/>` : ''}
         <span class="text-sm text-gray-600 dark:text-gray-400">${data.fecha_hora}</span>
       `;
