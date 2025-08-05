@@ -6,7 +6,10 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
-socketio = SocketIO(app)
+# ✅ SOLO UNA INSTANCIA DE SocketIO, ya configurada
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
+
+DB_PATH = 'pedidos.db'
 
 def init_db():
     if os.path.exists('pedidos.db'):

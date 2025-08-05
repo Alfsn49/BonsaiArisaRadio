@@ -10,27 +10,26 @@
 <body class="bg-white text-gray-900 dark:bg-gray-900 dark:text-white p-4 font-sans transition-colors duration-300">
 
   <div class="max-w-7xl mx-auto space-y-6">
-
     <h1 class="text-4xl font-bold text-center">🎧 Bonsai Arisa 2.0 - Radio Anime</h1>
 
-    <!-- Contenedor principal en grid 2 columnas en md+ -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-      <!-- Columna izquierda: slider + radio + form -->
       <div class="md:col-span-2 flex flex-col space-y-6">
-
         <!-- Slider -->
         <div class="w-full max-h-[320px] aspect-video bg-black overflow-hidden rounded-lg shadow-lg flex items-center justify-center">
-          <img id="sliderImage"
-     src="{{ url_for('static', filename=imagenes[0]) }}"
-     class="h-full w-auto object-contain transition-opacity duration-500 ease-in-out"
-     alt="Imagen Slider"
-     loading="lazy"
-     decoding="async"
-/>
+          {% if imagenes %}
+            <img id="sliderImage"
+              src="{{ url_for('static', filename=imagenes[0]) }}"
+              class="h-full w-auto object-contain transition-opacity duration-500 ease-in-out"
+              alt="Imagen Slider"
+              loading="lazy"
+              decoding="async"
+            />
+          {% else %}
+            <span class="text-white">No hay imágenes</span>
+          {% endif %}
         </div>
 
-        <!-- Reproductor radio -->
+        <!-- Reproductor -->
         <section>
           <iframe
             src="https://stream.zeno.fm/kzcf8wg138tvv"
@@ -46,67 +45,64 @@
                  class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600" />
           <input name="cancion" placeholder="Nombre de la canción" required
                  class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600" />
-            <textarea name="artista" placeholder="Artista"
+          <textarea name="artista" placeholder="Artista"
                     class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600"></textarea>
           <textarea name="dedicatoria" placeholder="Dedicatoria (opcional)"
                     class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600"></textarea>
-                    
+
           <button type="submit"
                   class="bg-pink-500 hover:bg-pink-600 text-white w-full py-2 rounded transition-colors duration-300">
             Enviar pedido
           </button>
         </form>
-
       </div>
 
-      <!-- Columna derecha: lista de pedidos -->
+      <!-- Lista de pedidos -->
       <div id="listaPedidos" class="space-y-4 overflow-y-auto max-h-[700px] pr-2 bg-gray-50 dark:bg-gray-900 rounded-lg shadow p-4">
         <h2 class="text-2xl font-semibold mb-4 sticky top-0 bg-gray-50 dark:bg-gray-900 py-2">Últimos pedidos</h2>
         {% for nombre, cancion, dedicatoria, artista, fecha_hora in pedidos %}
-<div class="bg-white dark:bg-gray-800 text-black dark:text-white p-3 rounded shadow">
-  <strong>{{ cancion }}</strong> - {{ artista }} — pedido por {{ nombre }}<br />
-  {% if dedicatoria %}<em>"{{ dedicatoria }}"</em><br />{% endif %}
-  <span class="text-sm text-gray-600 dark:text-gray-400">{{ fecha_hora }}</span>
-</div>
-{% endfor %}
+        <div class="bg-white dark:bg-gray-800 text-black dark:text-white p-3 rounded shadow">
+          <strong>{{ cancion }}</strong> - {{ artista }} — pedido por {{ nombre }}<br />
+          {% if dedicatoria %}<em>"{{ dedicatoria }}"</em><br />{% endif %}
+          <span class="text-sm text-gray-600 dark:text-gray-400">{{ fecha_hora }}</span>
+        </div>
+        {% endfor %}
       </div>
-
     </div>
   </div>
 
- <script>
-  const sliderImage = document.getElementById('sliderImage');
-  const imagenes = {{ imagenes | tojson }};
-  let index = 0;
+  <!-- Slider JS -->
+  <script>
+    const sliderImage = document.getElementById('sliderImage');
+    const imagenes = {{ imagenes | tojson }};
+    let index = 0;
 
-  const cambiarImagen = () => {
-    index = (index + 1) % imagenes.length;
-    const nuevaImagen = new Image();
-    const nuevaSrc = `/static/${imagenes[index]}`;
+    const cambiarImagen = () => {
+      if (!imagenes.length) return;
+      index = (index + 1) % imagenes.length;
+      const nuevaSrc = `{{ url_for('static', filename='') }}/${imagenes[index]}`;
+      const nuevaImagen = new Image();
 
-    sliderImage.style.opacity = 0;
-
-    nuevaImagen.onload = () => {
-      sliderImage.src = nuevaSrc;
-      sliderImage.style.opacity = 1;
+      sliderImage.style.opacity = 0;
+      nuevaImagen.onload = () => {
+        sliderImage.src = nuevaSrc;
+        sliderImage.style.opacity = 1;
+      };
+      nuevaImagen.onerror = () => {
+        console.error('⚠️ No se pudo cargar la imagen:', nuevaSrc);
+        setTimeout(cambiarImagen, 1000);
+      };
+      nuevaImagen.src = nuevaSrc;
     };
 
-    nuevaImagen.onerror = () => {
-      console.error('⚠️ No se pudo cargar la imagen:', nuevaSrc);
-      // Intentar con la siguiente imagen en 1 segundo
-      setTimeout(cambiarImagen, 1000);
-    };
+    setInterval(cambiarImagen, 4000);
+  </script>
 
-    nuevaImagen.src = nuevaSrc;
-  };
-
-  setInterval(cambiarImagen, 4000);
-</script>
-  <!-- SocketIO -->
+  <!-- Socket.IO JS -->
   <script>
     const form = document.getElementById('pedidoForm');
     const lista = document.getElementById('listaPedidos');
-    const socket = io();
+    const socket = io({ path: '/socket.io' });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -126,6 +122,5 @@
       lista.prepend(div);
     });
   </script>
-
 </body>
 </html>
