@@ -30,13 +30,19 @@
         </div>
 
         <!-- Reproductor -->
-        <section>
-          <iframe
-            src="https://stream.zeno.fm/kzcf8wg138tvv"
-            class="w-full h-20 bg-gray-200 dark:bg-gray-800 rounded shadow"
-            allow="autoplay"
-          ></iframe>
-        </section>
+        <section class="flex justify-center">
+  <iframe 
+    src="https://zeno.fm/player/bonsai-arisa" 
+    width="575" 
+    height="250" 
+    frameborder="0" 
+    scrolling="no"
+    class="mx-auto block"
+  ></iframe>
+  <a href="https://zeno.fm/" target="_blank" class="block text-center text-xs text-gray-400 mt-1">
+    A Zeno.FM Station
+  </a>
+</section>
 
         <!-- Formulario -->
         <form id="pedidoForm" class="space-y-4 bg-gray-100 dark:bg-gray-800 p-4 rounded-lg shadow">
@@ -121,6 +127,8 @@
     lista.prepend(div);
   });
 </script>
+
+
 
 </body>
 </html>
