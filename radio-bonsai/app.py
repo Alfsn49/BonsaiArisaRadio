@@ -20,7 +20,7 @@ def init_db():
     if os.path.exists('pedidos.db'):
         os.remove('pedidos.db')  # Elimina el archivo anterior
 
-    with sqlite3.connect('pedidos.db') as conn:
+    with sqlite3.connect('pedidos.db',  check_same_thread=False) as conn:
         conn.execute('''
             CREATE TABLE pedidos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
