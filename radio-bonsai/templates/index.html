@@ -98,29 +98,29 @@
     setInterval(cambiarImagen, 4000);
   </script>
 
-  <!-- Socket.IO JS -->
-  <script>
-    const form = document.getElementById('pedidoForm');
-    const lista = document.getElementById('listaPedidos');
-    const socket = io({ path: '/socket.io' });
+ <script>
+  const form = document.getElementById('pedidoForm');
+  const lista = document.getElementById('listaPedidos');
+  const socket = io(window.location.origin, { path: '/socket.io' });
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const data = new FormData(form);
-      await fetch('/pedido', { method: 'POST', body: data });
-      form.reset();
-    });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    await fetch('/pedido', { method: 'POST', body: data });
+    form.reset();
+  });
 
-    socket.on('nuevo_pedido', data => {
-      const div = document.createElement('div');
-      div.className = "bg-white dark:bg-gray-800 text-black dark:text-white p-3 rounded shadow";
-      div.innerHTML = `
-        <strong>${data.cancion}</strong> - ${data.artista} — pedido por ${data.nombre}<br/>
-        ${data.dedicatoria ? `<em>"${data.dedicatoria}"</em><br/>` : ''}
-        <span class="text-sm text-gray-600 dark:text-gray-400">${data.fecha_hora}</span>
-      `;
-      lista.prepend(div);
-    });
-  </script>
+  socket.on('nuevo_pedido', data => {
+    const div = document.createElement('div');
+    div.className = "bg-white dark:bg-gray-800 text-black dark:text-white p-3 rounded shadow";
+    div.innerHTML = `
+      <strong>${data.cancion}</strong> - ${data.artista} — pedido por ${data.nombre}<br/>
+      ${data.dedicatoria ? `<em>"${data.dedicatoria}"</em><br/>` : ''}
+      <span class="text-sm text-gray-600 dark:text-gray-400">${data.fecha_hora}</span>
+    `;
+    lista.prepend(div);
+  });
+</script>
+
 </body>
 </html>
