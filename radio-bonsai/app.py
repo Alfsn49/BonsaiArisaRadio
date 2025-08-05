@@ -60,7 +60,7 @@ def pedido():
         'dedicatoria': dedicatoria,
         'artista': artista,
         'fecha_hora': fecha_hora
-    })
+    }, broadcast=True)
     return '', 204
 
 if __name__ == '__main__':
