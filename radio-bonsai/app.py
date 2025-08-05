@@ -63,12 +63,12 @@ def pedido():
         conn.commit()
 
     socketio.emit('nuevo_pedido', {
-        'nombre': nombre,
-        'cancion': cancion,
-        'dedicatoria': dedicatoria,
-        'artista': artista,
-        'fecha_hora': fecha_hora
-    }, broadcast=True)
+    'nombre': nombre,
+    'cancion': cancion,
+    'dedicatoria': dedicatoria,
+    'artista': artista,
+    'fecha_hora': fecha_hora
+}, to=None)
     return '', 204
 
 if __name__ == '__main__':
