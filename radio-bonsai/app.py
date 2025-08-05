@@ -65,4 +65,4 @@ def pedido():
 
 if __name__ == '__main__':
     # Solo se ejecuta si arrancas la app con python app.py directamente (útil para desarrollo)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
