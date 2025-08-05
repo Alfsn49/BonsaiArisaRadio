@@ -1,5 +1,9 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 import sqlite3
 import os
 from datetime import datetime
@@ -7,7 +11,8 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
 # ✅ SOLO UNA INSTANCIA DE SocketIO, ya configurada
-socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
+CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 DB_PATH = 'pedidos.db'
 
