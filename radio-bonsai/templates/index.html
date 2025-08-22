@@ -5,77 +5,131 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Radio Anime - Pedidos</title>
   <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='dist/output.css') }}" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pink: {
+              200: '#fecaca',
+              400: '#f472b6',
+              500: '#ec4899',
+              600: '#db2777',
+            },
+            purple: {
+              200: '#e9d5ff',
+            },
+            indigo: {
+              200: '#c7d2fe',
+            }
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body class="bg-white text-gray-900 dark:bg-gray-900 dark:text-white p-4 font-sans transition-colors duration-300">
+<body class="min-h-screen bg-gradient-to-br from-pink-200 via-purple-200 to-indigo-200 p-6 font-sans transition-colors duration-300">
 
-  <div class="max-w-7xl mx-auto space-y-6">
-    <h1 class="text-4xl font-bold text-center">🎧 Bonsai Arisa 2.0 - Radio Anime</h1>
+  <!-- Toaster/Notificaciones (simulado) -->
+  <div id="toaster" class="fixed top-4 right-4 z-50 space-y-2 hidden"></div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="md:col-span-2 flex flex-col space-y-6">
-        <!-- Slider -->
-        <div class="w-full max-h-[320px] aspect-video bg-black overflow-hidden rounded-lg shadow-lg flex items-center justify-center">
-          {% if imagenes %}
-            <img id="sliderImage"
-              src="{{ url_for('static', filename=imagenes[0]) }}"
-              class="h-full w-auto object-contain transition-opacity duration-500 ease-in-out"
-              alt="Imagen Slider"
-              loading="lazy"
-              decoding="async"
-            />
-          {% else %}
-            <span class="text-white">No hay imágenes</span>
-          {% endif %}
-        </div>
+  <h1 class="text-4xl md:text-5xl font-extrabold text-center text-pink-600 drop-shadow mb-8">
+    🎧 Bonsai Arisa 2.0 - Radio Anime
+  </h1>
 
-        <!-- Reproductor -->
-        <section class="flex justify-center">
-  <iframe 
-    src="https://zeno.fm/player/bonsai-arisa" 
-    width="575" 
-    height="250" 
-    frameborder="0" 
-    scrolling="no"
-    class="mx-auto block"
-  ></iframe>
-  <a href="https://zeno.fm/" target="_blank" class="block text-center text-xs text-gray-400 mt-1">
-    A Zeno.FM Station
-  </a>
-</section>
+  <!-- Contenedor principal: 3 columnas en desktop -->
+  <div class="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
 
-        <!-- Formulario -->
-        <form id="pedidoForm" class="space-y-4 bg-gray-100 dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h2 class="text-2xl font-semibold mb-2">Haz tu pedido</h2>
-          <input name="nombre" placeholder="Tu nombre" required
-                 class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600" />
-          <input name="cancion" placeholder="Nombre de la canción" required
-                 class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600" />
-          <textarea name="artista" placeholder="Artista"
-                    class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600"></textarea>
-          <textarea name="dedicatoria" placeholder="Dedicatoria (opcional)"
-                    class="w-full p-2 rounded bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border border-gray-300 dark:border-gray-600"></textarea>
+    <!-- Columna 1: Slider -->
+    <div class="w-full lg:w-1/3 rounded-2xl shadow-lg overflow-hidden relative min-h-[300px] sm:min-h-[320px] md:min-h-[550px] lg:min-h-[600px] bg-black flex items-center justify-center">
+      {% if imagenes %}
+        <img id="sliderImage" src="{{ url_for('static', filename=imagenes[0]) }}" class="w-full h-full object-cover transition-opacity duration-500" />
+      {% else %}
+        <span class="text-white p-4">No hay imágenes</span>
+      {% endif %}
+    </div>
 
-          <button type="submit"
-                  class="bg-pink-500 hover:bg-pink-600 text-white w-full py-2 rounded transition-colors duration-300">
-            Enviar pedido
-          </button>
-        </form>
-      </div>
+    <!-- Columna 2: Formulario + Lista de pedidos -->
+    <div class="w-full lg:w-1/3 flex flex-col gap-6">
+      <!-- Formulario -->
+      <form id="pedidoForm" class="space-y-4 p-6 rounded-2xl shadow-lg bg-white/70 backdrop-blur-md">
+        <h2 class="text-xl font-semibold text-gray-700 mb-2">Haz tu pedido 🎶</h2>
+        <input name="nombre" placeholder="Tu nombre" required class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
+        <input name="cancion" placeholder="Nombre de la canción" required class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
+        <input name="artista" placeholder="Artista" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
+        <textarea name="dedicatoria" placeholder="Dedicatoria (opcional)" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900"></textarea>
+        <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white w-full py-3 rounded-lg font-semibold shadow-md transition-all duration-300">
+          🎵 Enviar pedido
+        </button>
+      </form>
 
       <!-- Lista de pedidos -->
-      <div id="listaPedidos" class="space-y-4 overflow-y-auto max-h-[700px] pr-2 bg-gray-50 dark:bg-gray-900 rounded-lg shadow p-4">
-        <h2 class="text-2xl font-semibold mb-4 sticky top-0 bg-gray-50 dark:bg-gray-900 py-2">Últimos pedidos</h2>
-        {% for nombre, cancion, dedicatoria, artista, fecha_hora in pedidos %}
-        <div class="bg-white dark:bg-gray-800 text-black dark:text-white p-3 rounded shadow">
-          <strong>{{ cancion }}</strong> - {{ artista }} — pedido por {{ nombre }}<br />
-          {% if dedicatoria %}<em>"{{ dedicatoria }}"</em><br />{% endif %}
-          <span class="text-sm text-gray-600 dark:text-gray-400">{{ fecha_hora }}</span>
+      <div id="listaPedidos" class="bg-white/70 backdrop-blur-md p-6 rounded-2xl shadow-lg max-h-[500px] overflow-y-auto">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">📜 Lista de pedidos</h2>
+        <div class="space-y-4">
+          {% if pedidos %}
+            {% for pedido in pedidos %}
+              <div class="flex items-start space-x-3 bg-white rounded-lg shadow p-3">
+                <div class="w-10 h-10 rounded-full bg-pink-400 flex items-center justify-center text-white font-bold">
+                  {{ pedido.nombre[0]|upper }}
+                </div>
+                <div>
+                  <strong class="text-pink-600">{{ pedido.cancion }}</strong> 
+                  <span class="text-gray-700">- {{ pedido.artista or "Desconocido" }}</span>
+                  <div class="text-sm text-gray-600">
+                    Pedido por <span class="font-medium">{{ pedido.nombre }}</span>
+                  </div>
+                  {% if pedido.dedicatoria %}
+                    <div class="text-gray-500 italic">&quot;{{ pedido.dedicatoria }}&quot;</div>
+                  {% endif %}
+                  <div class="text-xs text-gray-400">{{ pedido.fecha_hora }}</div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-gray-500 italic">No hay pedidos aún</p>
+          {% endif %}
         </div>
-        {% endfor %}
       </div>
     </div>
+
+    <!-- Columna 3: Comentarios -->
+    <div class="w-full lg:w-1/3 flex flex-col gap-4">
+      <div id="comentarios" class="bg-white p-6 rounded-2xl shadow-lg max-h-[700px] overflow-y-auto flex-1">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">💬 Comentarios en vivo</h2>
+        <div class="space-y-3">
+          {% if comentarios %}
+            {% for c in comentarios %}
+              <div class="bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between">
+                <div class="text-gray-900">
+                  <span class="font-bold text-pink-600">{{ c.nombre }}:</span> {{ c.mensaje }}
+                </div>
+                <div class="text-xs text-gray-500 mt-2">{{ c.fecha_hora }}</div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-gray-500 italic text-center">No hay comentarios aún</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Formulario de comentarios -->
+      <form id="comentarioForm" class="flex flex-col gap-3 mt-2">
+        <input name="nombre" placeholder="Tu nombre" class="w-full p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white text-gray-900 text-lg" required />
+        <textarea name="mensaje" placeholder="Escribe tu comentario" class="w-full p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white text-gray-900 text-lg resize-none h-40" required></textarea>
+        <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-all duration-300 text-lg">
+          Enviar
+        </button>
+      </form>
+    </div>
+
   </div>
+
+  <!-- Reproductor de radio -->
+  <section class="flex justify-center mt-10">
+    <iframe src="https://zeno.fm/player/bonsai-arisa" width="100%" max-width="575" height="250" frameborder="0" scrolling="no" class="rounded-xl shadow-lg" allow="autoplay"></iframe>
+  </section>
 
   <!-- Slider JS -->
   <script>
@@ -84,51 +138,120 @@
     let index = 0;
 
     const cambiarImagen = () => {
-      if (!imagenes.length) return;
+      if (!imagenes || !imagenes.length) return;
       index = (index + 1) % imagenes.length;
-      const nuevaSrc = `{{ url_for('static', filename='') }}/${imagenes[index]}`;
-      const nuevaImagen = new Image();
-
+      const nuevaSrc = `{{ url_for('static', filename='') }}${imagenes[index]}`;
+      
+      // Efecto de transición
       sliderImage.style.opacity = 0;
-      nuevaImagen.onload = () => {
+      
+      setTimeout(() => {
         sliderImage.src = nuevaSrc;
         sliderImage.style.opacity = 1;
-      };
-      nuevaImagen.onerror = () => {
-        console.error('⚠️ No se pudo cargar la imagen:', nuevaSrc);
-        setTimeout(cambiarImagen, 1000);
-      };
-      nuevaImagen.src = nuevaSrc;
+      }, 500);
     };
 
-    setInterval(cambiarImagen, 4000);
+    if (imagenes && imagenes.length > 1) {
+      setInterval(cambiarImagen, 4000);
+    }
   </script>
 
- <script>
-  const form = document.getElementById('pedidoForm');
-  const lista = document.getElementById('listaPedidos');
-  const socket = io(window.location.origin, { path: '/socket.io' });
+  <!-- Socket.io para pedidos en tiempo real -->
+  <script>
+    const form = document.getElementById('pedidoForm');
+    const comentarioForm = document.getElementById('comentarioForm');
+    const lista = document.getElementById('listaPedidos');
+    const comentariosContainer = document.getElementById('comentarios');
+    const toaster = document.getElementById('toaster');
+    const socket = io(window.location.origin, { path: '/socket.io' });
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = new FormData(form);
-    await fetch('/pedido', { method: 'POST', body: data });
-    form.reset();
-  });
+    // Función para mostrar notificaciones
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      toast.className = `p-4 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
+      toast.textContent = message;
+      toaster.appendChild(toast);
+      toaster.classList.remove('hidden');
+      
+      setTimeout(() => {
+        toast.remove();
+        if (toaster.children.length === 0) {
+          toaster.classList.add('hidden');
+        }
+      }, 3000);
+    }
 
-  socket.on('nuevo_pedido', data => {
-    const div = document.createElement('div');
-    div.className = "bg-white dark:bg-gray-800 text-black dark:text-white p-3 rounded shadow";
-    div.innerHTML = `
-      <strong>${data.cancion}</strong> - ${data.artista} — pedido por ${data.nombre}<br/>
-      ${data.dedicatoria ? `<em>"${data.dedicatoria}"</em><br/>` : ''}
-      <span class="text-sm text-gray-600 dark:text-gray-400">${data.fecha_hora}</span>
-    `;
-    lista.prepend(div);
-  });
-</script>
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      try {
+        const response = await fetch('/pedido', { method: 'POST', body: data });
+        if (response.ok) {
+          showToast('Pedido enviado correctamente');
+          form.reset();
+        } else {
+          showToast('Error al enviar el pedido', 'error');
+        }
+      } catch (error) {
+        showToast('Error de conexión', 'error');
+      }
+    });
 
+    comentarioForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(comentarioForm);
+      try {
+        const response = await fetch('/comentario', { 
+          method: 'POST', 
+          body: formData 
+        });
+        if (response.ok) {
+          comentarioForm.reset();
+        }
+      } catch (error) {
+        showToast('Error al enviar comentario', 'error');
+      }
+    });
 
+    socket.on('nuevo_pedido', data => {
+      const div = document.createElement('div');
+      div.className = "flex items-start space-x-3 bg-white rounded-lg shadow p-3";
+      div.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-pink-400 flex items-center justify-center text-white font-bold">${data.nombre.charAt(0).toUpperCase()}</div>
+        <div>
+          <strong class="text-pink-600">${data.cancion}</strong> <span class="text-gray-700">- ${data.artista || "Desconocido"}</span>
+          <div class="text-sm text-gray-600">Pedido por <span class="font-medium">${data.nombre}</span></div>
+          ${data.dedicatoria ? `<div class="text-gray-500 italic">&quot;${data.dedicatoria}&quot;</div>` : ''}
+          <div class="text-xs text-gray-400">${new Date(data.fecha_hora).toLocaleString()}</div>
+        </div>
+      `;
+      lista.querySelector('.space-y-4').prepend(div);
+      
+      // Si no hay pedidos, eliminar el mensaje de "no hay pedidos"
+      const noPedidosMsg = lista.querySelector('p');
+      if (noPedidosMsg) {
+        noPedidosMsg.remove();
+      }
+    });
+
+    socket.on('nuevo_comentario', data => {
+  const comentarioDiv = document.createElement('div');
+  comentarioDiv.className = 'bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between';
+  comentarioDiv.innerHTML = `
+    <div class="text-gray-900">
+      <span class="font-bold text-pink-600">${data.nombre}:</span> ${data.mensaje}
+    </div>
+    <div class="text-xs text-gray-500 mt-2">${new Date(data.fecha_hora).toLocaleTimeString()}</div>
+  `;
+
+  const comentariosList = document.querySelector('#comentarios .space-y-3');
+  comentariosList.prepend(comentarioDiv);
+
+  // Elimina el mensaje "No hay comentarios" si existía
+  const noComentariosMsg = document.querySelector('#comentarios p');
+  if (noComentariosMsg) noComentariosMsg.remove();
+});
+  </script>
 
 </body>
 </html>

@@ -12,15 +12,21 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
 # ✅ SOLO UNA INSTANCIA DE SocketIO, ya configurada
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, 
+                   cors_allowed_origins="*",
+                   async_mode='eventlet',
+                   logger=True,
+                   engineio_logger=False,  # Desactiva en producción
+                   ping_timeout=60,
+                   ping_interval=25)
 
 DB_PATH = 'pedidos.db'
 
 def init_db():
-    if os.path.exists('pedidos.db'):
-        os.remove('pedidos.db')  # Elimina el archivo anterior
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)  # Borra la DB anterior (solo desarrollo)
 
-    with sqlite3.connect('pedidos.db',  check_same_thread=False) as conn:
+    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         conn.execute('''
             CREATE TABLE pedidos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,20 +38,40 @@ def init_db():
             )
         ''')
 
+        conn.execute('''
+            CREATE TABLE comentarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT,
+                mensaje TEXT,
+                fecha_hora TEXT
+            )
+        ''')
+
 # Llamamos a init_db aquí para que se ejecute al importar el módulo,
 # es decir, cuando Gunicorn o cualquier otro servidor arranque la app
 init_db()
 
 @app.route('/')
 def index():
-    with sqlite3.connect('pedidos.db') as conn:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row  # ✅ Esto hace que fetchall devuelva diccionarios
+
         pedidos = conn.execute(
             'SELECT nombre, cancion, dedicatoria, artista, fecha_hora FROM pedidos ORDER BY id DESC'
         ).fetchall()
 
+        comentarios = conn.execute(
+            'SELECT nombre, mensaje, fecha_hora FROM comentarios ORDER BY id DESC'
+        ).fetchall()
+
     ruta_imgs = os.path.join(app.static_folder, 'img')
     imagenes = [f'img/{img}' for img in sorted(os.listdir(ruta_imgs)) if img.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
-    return render_template('index.html', pedidos=pedidos, imagenes=imagenes)
+
+    # Convertir Row objects a diccionarios normales
+    pedidos = [dict(p) for p in pedidos]
+    comentarios = [dict(c) for c in comentarios]
+
+    return render_template('index.html', pedidos=pedidos, comentarios=comentarios, imagenes=imagenes)
 
 @app.route('/pedido', methods=['POST'])
 def pedido():
@@ -71,6 +97,25 @@ def pedido():
 }, to=None)
     return '', 204
 
+@app.route('/comentario', methods=['POST'])
+def comentario():
+    nombre = request.form['nombre']
+    mensaje = request.form['mensaje']
+    fecha_hora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            'INSERT INTO comentarios (nombre, mensaje, fecha_hora) VALUES (?, ?, ?)',
+            (nombre, mensaje, fecha_hora)
+        )
+        conn.commit()
+
+    socketio.emit('nuevo_comentario', {
+        'nombre': nombre,
+        'mensaje': mensaje,
+        'fecha_hora': fecha_hora
+    }, to=None)
+    return '', 204
+
 if __name__ == '__main__':
-    # Solo se ejecuta si arrancas la app con python app.py directamente (útil para desarrollo)
-    socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
+    socketio.run(app, host='0.0.0.0', port=8000)  # Solo para desarrollo local
