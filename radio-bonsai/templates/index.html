@@ -44,10 +44,11 @@
     <!-- Columna 1: Slider -->
     <div class="w-full lg:w-1/3 rounded-2xl shadow-lg overflow-hidden relative min-h-[300px] sm:min-h-[320px] md:min-h-[550px] lg:min-h-[600px] bg-black flex items-center justify-center">
       {% if imagenes %}
-        <img id="sliderImage" src="{{ url_for('static', filename=imagenes[0]) }}" class="w-full h-full object-cover transition-opacity duration-500" />
-      {% else %}
-        <span class="text-white p-4">No hay imágenes</span>
-      {% endif %}
+  <img id="sliderImage" src="{{ imagenes[0] }}" class="w-full h-full object-cover transition-opacity duration-500" />
+{% else %}
+  <span class="text-white p-4">No hay imágenes</span>
+{% endif %}
+
     </div>
 
     <!-- Columna 2: Formulario + Lista de pedidos -->
@@ -134,26 +135,24 @@
   <!-- Slider JS -->
   <script>
     const sliderImage = document.getElementById('sliderImage');
-    const imagenes = {{ imagenes | tojson }};
-    let index = 0;
+const imagenes = {{ imagenes | tojson }};
+let index = 0;
 
-    const cambiarImagen = () => {
-      if (!imagenes || !imagenes.length) return;
-      index = (index + 1) % imagenes.length;
-      const nuevaSrc = `{{ url_for('static', filename='') }}${imagenes[index]}`;
-      
-      // Efecto de transición
-      sliderImage.style.opacity = 0;
-      
-      setTimeout(() => {
-        sliderImage.src = nuevaSrc;
-        sliderImage.style.opacity = 1;
-      }, 500);
-    };
+const cambiarImagen = () => {
+  if (!imagenes || !imagenes.length) return;
+  index = (index + 1) % imagenes.length;
+  const nuevaSrc = imagenes[index];  // ya es URL directa
+  
+  sliderImage.style.opacity = 0;
+  setTimeout(() => {
+    sliderImage.src = nuevaSrc;
+    sliderImage.style.opacity = 1;
+  }, 500);
+};
 
-    if (imagenes && imagenes.length > 1) {
-      setInterval(cambiarImagen, 4000);
-    }
+if (imagenes && imagenes.length > 1) {
+  setInterval(cambiarImagen, 4000);
+}
   </script>
 
   <!-- Socket.io para pedidos en tiempo real -->
