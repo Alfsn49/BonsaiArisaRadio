@@ -8,12 +8,15 @@ patch_psycopg()
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 from flask_cors import CORS
+from flask_mail import Mail, Message
 import os
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import pytz
+import uuid
+
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -21,6 +24,15 @@ ENV = os.getenv("FLASK_ENV", "production")  # producción por defecto
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
+# Configuración de correo (ejemplo con Gmail)
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')  # tu correo
+app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASS')   # contraseña de aplicación
+app.config['MAIL_USE_TLS'] = False
+app.config['MAIL_USE_SSL'] = True
+
+mail = Mail(app)
 
 CORS(app)
 socketio = SocketIO(
@@ -67,6 +79,14 @@ def init_db():
                     fecha_hora TIMESTAMP NOT NULL
                 )
             """)
+            cur.execute("""
+    CREATE TABLE IF NOT EXISTS reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES usuarios(id),
+        token TEXT UNIQUE NOT NULL,
+        expiracion TIMESTAMP NOT NULL
+    )
+""")
             # índices para performance
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_fecha ON pedidos(fecha_hora DESC)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_comentarios_fecha ON comentarios(fecha_hora DESC)")
@@ -176,6 +196,72 @@ def login():
         return {"message": "Login exitoso", "usuario": {"id": user[0], "username": user[1], "email": user[2]}}, 200
     return {"error": "Credenciales incorrectas"}, 401
 
+def send_async_email(msg):
+    with app.app_context():
+        mail.send(msg)
+
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json()
+    email = data.get('email', '').lower()
+    if not email:
+        return {"error": "Se requiere el email"}, 400
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM usuarios WHERE email = %s", (email,))
+            user = cur.fetchone()
+            if not user:
+                return {"error": "Usuario no encontrado"}, 404
+
+            token = str(uuid.uuid4())
+            expiracion = datetime.utcnow() + timedelta(minutes=30)
+
+            cur.execute(
+                "INSERT INTO reset_tokens (user_id, token, expiracion) VALUES (%s, %s, %s)",
+                (user[0], token, expiracion)
+            )
+            conn.commit()
+
+    reset_link = f"https://bonsaiarisaradio.onrender.com/recuperacion?token={token}"
+    html_body = f"<p>Haz click en el enlace para cambiar tu contraseña (válido 30 min):</p><a href='{reset_link}'>{reset_link}</a>"
+
+    msg = Message("Recuperación de contraseña", sender=app.config['MAIL_USERNAME'], recipients=[email])
+    msg.html = html_body
+
+    # Spawn para enviar sin bloquear
+    eventlet.spawn(send_async_email, msg)
+
+    return {"message": "Correo de recuperación enviado"}
+
+
+@app.route('/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('password')
+
+    if not token or not new_password:
+        return {"error": "Faltan campos"}, 400
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT user_id, expiracion FROM reset_tokens WHERE token = %s", (token,))
+            token_data = cur.fetchone()
+            if not token_data:
+                return {"error": "Token inválido"}, 400
+            if datetime.utcnow() > token_data[1]:
+                return {"error": "Token expirado"}, 400
+
+            hashed_password = generate_password_hash(new_password)
+            cur.execute("UPDATE usuarios SET password = %s WHERE id = %s", (hashed_password, token_data[0]))
+            cur.execute("DELETE FROM reset_tokens WHERE token = %s", (token,))
+            conn.commit()
+
+    return {"message": "Contraseña actualizada con éxito"}
+
+
+
 # --- Pedidos/Comentarios ---
 @app.route('/pedido', methods=['POST'])
 def pedido():
@@ -218,6 +304,11 @@ def comentario():
         'fecha_hora': fecha_hora.strftime('%Y-%m-%d %H:%M:%S')
     })
     return '', 204
+
+
+@app.route('/recuperacion')
+def about():
+    return render_template('recuperacion.html')
 
 # --- Ejecutar app ---
 if __name__ == '__main__':

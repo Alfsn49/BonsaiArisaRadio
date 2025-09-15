@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Radio Anime - Pedidos</title>
+  <link rel="icon" href="{{ url_for('static', filename='Kako10thAnniversaryChibi.ico') }}" type="image/x-icon" />
   <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -146,21 +147,36 @@
   </section>
 
   <!-- Modal Login/Register -->
-  <div id="authModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-md relative">
-      <button id="closeModal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">✖</button>
-      <h2 id="modalTitle" class="text-2xl font-bold text-pink-600 mb-4"></h2>
-      <form id="authForm" class="space-y-4">
-        <input type="text" name="username" id="usernameInput" placeholder="Nombre de usuario" required
-          class="w-full p-3 border rounded-lg" />
-        <input type="email" name="email" id="emailInput" placeholder="Correo electrónico" class="w-full p-3 border rounded-lg hidden" />
-        <input type="password" name="password" placeholder="Contraseña" required class="w-full p-3 border rounded-lg" />
-        <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white w-full py-3 rounded-lg font-semibold shadow-md">
-          Confirmar
-        </button>
-      </form>
-    </div>
+<div id="authModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-md relative">
+    <button id="closeModal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">✖</button>
+    <h2 id="modalTitle" class="text-2xl font-bold text-pink-600 mb-4"></h2>
+
+    <!-- Formulario Login/Register -->
+    <form id="authForm" class="space-y-4">
+      <input type="text" name="username" id="usernameInput" placeholder="Nombre de usuario" required
+        class="w-full p-3 border rounded-lg" />
+      <input type="email" name="email" id="emailInput" placeholder="Correo electrónico" class="w-full p-3 border rounded-lg hidden" />
+      <input type="password" name="password" placeholder="Contraseña" required class="w-full p-3 border rounded-lg" />
+      <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white w-full py-3 rounded-lg font-semibold shadow-md">
+        Confirmar
+      </button>
+    </form>
+
+    <!-- Botón para olvidar contraseña -->
+    <button id="forgotBtn" class="text-sm text-blue-600 hover:underline mt-2">¿Olvidaste tu contraseña?</button>
+
+    <!-- Formulario de recuperación -->
+    <form id="forgotForm" class="space-y-4 mt-4 hidden">
+      <input type="email" id="forgotEmail" placeholder="Ingresa tu correo" required
+        class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400" />
+      <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white w-full py-3 rounded-lg font-semibold shadow-md">
+        Enviar correo
+      </button>
+      <p id="forgotMessage" class="text-center font-medium hidden mt-2"></p>
+    </form>
   </div>
+</div>
 
   <!-- Slider JS -->
   <script>
@@ -206,12 +222,35 @@
     const closeModal = document.getElementById("closeModal");
     const modalTitle = document.getElementById("modalTitle");
     const authForm = document.getElementById("authForm");
+    const emailInput = document.getElementById("emailInput");
+
+  const forgotBtn = document.getElementById("forgotBtn");
+  const forgotForm = document.getElementById("forgotForm");
+  const forgotEmail = document.getElementById("forgotEmail");
+  const forgotMessage = document.getElementById("forgotMessage");
 
     let authMode = "login";
 
     btnLogin.onclick = () => { authMode = "login"; modalTitle.textContent = "Iniciar sesión"; emailInput.classList.add("hidden"); authModal.classList.remove("hidden"); };
     btnRegister.onclick = () => { authMode = "register"; modalTitle.textContent = "Registrarse"; emailInput.classList.remove("hidden"); authModal.classList.remove("hidden"); };
-    closeModal.onclick = () => authModal.classList.add("hidden");
+    closeModal.onclick = () => {
+  // Oculta el modal
+  authModal.classList.add("hidden");
+
+  // Restablece al estado login por defecto
+  authForm.classList.remove("hidden");
+  forgotForm.classList.add("hidden");
+  forgotMessage.classList.add("hidden");
+  forgotMessage.textContent = "";
+  modalTitle.textContent = authMode === "register" ? "Registrarse" : "Iniciar sesión";
+};
+
+    forgotBtn.onclick = () => {
+    authForm.classList.add("hidden");
+    forgotForm.classList.remove("hidden");
+    forgotMessage.classList.add("hidden");
+    modalTitle.textContent = "Recuperar contraseña";
+  };
 
     authForm.onsubmit = async e => {
   e.preventDefault();
@@ -247,7 +286,37 @@
   }
 };
 
-    btnLogout.onclick = () => { localStorage.removeItem("usuario"); showToast("Sesión cerrada"); updateUI(); };
+  forgotForm.onsubmit = async e => {
+    e.preventDefault();
+    forgotMessage.classList.add("hidden");
+    forgotMessage.textContent = "";
+
+    try {
+      const res = await fetch("/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.value })
+      });
+      const data = await res.json();
+      forgotMessage.classList.remove("hidden");
+      if(res.ok){
+        forgotMessage.classList.remove("text-red-500");
+        forgotMessage.classList.add("text-green-600");
+        forgotMessage.textContent = "Correo de recuperación enviado ✅ Revisa tu bandeja de entrada.";
+        forgotForm.reset();
+      } else {
+        forgotMessage.classList.remove("text-green-600");
+        forgotMessage.classList.add("text-red-500");
+        forgotMessage.textContent = data.error || "Ocurrió un error al enviar el correo";
+      }
+    } catch(err){
+      forgotMessage.classList.remove("text-green-600");
+      forgotMessage.classList.add("text-red-500");
+      forgotMessage.textContent = "Error de conexión ❌";
+      forgotMessage.classList.remove("hidden");
+    }
+  };    
+btnLogout.onclick = () => { localStorage.removeItem("usuario"); showToast("Sesión cerrada"); updateUI(); };
 
     function updateUI() {
       const user = JSON.parse(localStorage.getItem("usuario") || "null");
