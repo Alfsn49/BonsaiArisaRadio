@@ -308,7 +308,8 @@ def comentario():
 
 @app.route('/recuperacion')
 def about():
-    return render_template('recuperacion.html')
+    imagen_url = "https://cdn.donmai.us/sample/9e/fb/__takafuji_kako_idolmaster_and_2_more_drawn_by_papemo368__sample-9efb3f8b6354b1253d6de936db40079a.jpg"
+    return render_template('recuperacion.html', imagen_url=imagen_url)
 
 # --- Ejecutar app ---
 if __name__ == '__main__':
