@@ -1,20 +1,23 @@
 import eventlet
 eventlet.monkey_patch()
 
+# Parche para psycopg2 y Eventlet (evita bloqueo en mainloop)
+from psycogreen.eventlet import patch_psycopg
+patch_psycopg()
+
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 from flask_cors import CORS
 import os
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 import pytz
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-ENV = os.getenv("FLASK_ENV", "production")  # 👈 por defecto producción
-
+ENV = os.getenv("FLASK_ENV", "production")  # producción por defecto
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
@@ -33,11 +36,10 @@ socketio = SocketIO(
 def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
-# --- INIT DB UNIFICADO ---
+# --- INIT DB ---
 def init_db():
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # Usuarios
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS usuarios (
                     id SERIAL PRIMARY KEY,
@@ -47,7 +49,6 @@ def init_db():
                     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            # Pedidos
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS pedidos (
                     id SERIAL PRIMARY KEY,
@@ -58,7 +59,6 @@ def init_db():
                     fecha_hora TIMESTAMP NOT NULL
                 )
             """)
-            # Comentarios
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS comentarios (
                     id SERIAL PRIMARY KEY,
@@ -67,17 +67,19 @@ def init_db():
                     fecha_hora TIMESTAMP NOT NULL
                 )
             """)
+            # índices para performance
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_fecha ON pedidos(fecha_hora DESC)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_comentarios_fecha ON comentarios(fecha_hora DESC)")
             conn.commit()
 
-            # Limpiar registros con más de 7 días
+            # limpiar registros >7 días
             cur.execute("DELETE FROM pedidos WHERE fecha_hora < NOW() - INTERVAL '7 days'")
             cur.execute("DELETE FROM comentarios WHERE fecha_hora < NOW() - INTERVAL '7 days'")
             conn.commit()
 
-# Llamamos al iniciar la app
 init_db()
 
-# --- UTILIDAD HORA LOCAL ---
+# --- HORA LOCAL ---
 def obtener_hora_local(fecha_utc, tz_str='America/Guayaquil'):
     tz = pytz.timezone(tz_str)
     return fecha_utc.astimezone(tz)
@@ -87,7 +89,12 @@ def obtener_hora_local(fecha_utc, tz_str='America/Guayaquil'):
 def index():
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT nombre, cancion, dedicatoria, artista, fecha_hora FROM pedidos ORDER BY id DESC")
+            cur.execute("""
+                SELECT nombre, cancion, dedicatoria, artista, fecha_hora 
+                FROM pedidos 
+                ORDER BY fecha_hora DESC 
+                LIMIT 150
+            """)
             pedidos = [
                 {
                     "nombre": r[0],
@@ -98,7 +105,12 @@ def index():
                 } for r in cur.fetchall()
             ]
 
-            cur.execute("SELECT nombre, mensaje, fecha_hora FROM comentarios ORDER BY id DESC")
+            cur.execute("""
+                SELECT nombre, mensaje, fecha_hora 
+                FROM comentarios 
+                ORDER BY fecha_hora DESC 
+                LIMIT 150
+            """)
             comentarios = [
                 {
                     "nombre": r[0],
@@ -107,7 +119,6 @@ def index():
                 } for r in cur.fetchall()
             ]
 
-    # Ejemplo de imágenes
     imagenes = [
         "https://cdn.donmai.us/sample/ff/5c/__yuel_granblue_fantasy_drawn_by_ma_ma_gobu__sample-ff5c88a1fbe0268b4a541066eeec2283.jpg",
         "https://cdn.donmai.us/sample/f9/b1/__aoba_moca_bang_dream_drawn_by_junji_17__sample-f9b134acb411baf52613e5e95d7fd9db.jpg",
@@ -120,7 +131,7 @@ def index():
 
     return render_template('index.html', pedidos=pedidos, comentarios=comentarios, imagenes=imagenes)
 
-# --- Registro/Login igual ---
+# --- Registro/Login ---
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -143,10 +154,7 @@ def register():
                     (username, email, hashed_password)
                 )
                 conn.commit()
-        return {
-            "message": "Usuario registrado con éxito",
-            "usuario": {"username": username, "email": email}
-        }, 201
+        return {"message": "Usuario registrado con éxito", "usuario": {"username": username, "email": email}}, 201
     except psycopg2.Error:
         return {"error": "El email ya está registrado o hubo un problema"}, 400
 
@@ -168,6 +176,7 @@ def login():
         return {"message": "Login exitoso", "usuario": {"id": user[0], "username": user[1], "email": user[2]}}, 200
     return {"error": "Credenciales incorrectas"}, 401
 
+# --- Pedidos/Comentarios ---
 @app.route('/pedido', methods=['POST'])
 def pedido():
     nombre = request.form['nombre']
@@ -210,10 +219,11 @@ def comentario():
     })
     return '', 204
 
-# --- SOLO MODO DESARROLLO ---
+# --- Ejecutar app ---
 if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 8000))  # Render asigna dinámicamente
     if ENV == "development":
-        print("🚀 Ejecutando en modo desarrollo con socketio.run")
-        socketio.run(app, host='0.0.0.0', port=8000, debug=True)
+        print("🚀 Modo desarrollo")
+        socketio.run(app, host='0.0.0.0', port=port, debug=True)
     else:
         print("⚡ Producción detectada: usar gunicorn -k eventlet -w 1 app:app")

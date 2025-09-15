@@ -17,6 +17,7 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.2
 packaging==25.0
+psycogreen==1.0.2
 psycopg2-binary==2.9.10
 python-dotenv==1.1.1
 python-engineio==4.12.2
