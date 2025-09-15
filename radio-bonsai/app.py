@@ -13,7 +13,8 @@ import pytz
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-print('Datos de la base de datos', DATABASE_URL)
+ENV = os.getenv("FLASK_ENV", "production")  # 👈 por defecto producción
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
@@ -209,5 +210,10 @@ def comentario():
     })
     return '', 204
 
+# --- SOLO MODO DESARROLLO ---
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=8000)
+    if ENV == "development":
+        print("🚀 Ejecutando en modo desarrollo con socketio.run")
+        socketio.run(app, host='0.0.0.0', port=8000, debug=True)
+    else:
+        print("⚡ Producción detectada: usar gunicorn -k eventlet -w 1 app:app")
