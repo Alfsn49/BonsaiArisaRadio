@@ -2,71 +2,111 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO
 from flask_cors import CORS
-import sqlite3
 import os
-from datetime import datetime
+import psycopg2
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+import pytz
+
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
+print('Datos de la base de datos', DATABASE_URL)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'anime-radio-secret'
-# ✅ SOLO UNA INSTANCIA DE SocketIO, ya configurada
+
 CORS(app)
-socketio = SocketIO(app, 
-                   cors_allowed_origins="*",
-                   async_mode='eventlet',
-                   logger=True,
-                   engineio_logger=False,  # Desactiva en producción
-                   ping_timeout=60,
-                   ping_interval=25)
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='eventlet',
+    logger=True,
+    engineio_logger=False,
+    ping_timeout=60,
+    ping_interval=25
+)
 
-DB_PATH = 'pedidos.db'
+def get_connection():
+    return psycopg2.connect(DATABASE_URL)
 
+# --- INIT DB UNIFICADO ---
 def init_db():
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)  # Borra la DB anterior (solo desarrollo)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # Usuarios
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS usuarios (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Pedidos
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS pedidos (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT NOT NULL,
+                    cancion TEXT NOT NULL,
+                    dedicatoria TEXT,
+                    artista TEXT,
+                    fecha_hora TIMESTAMP NOT NULL
+                )
+            """)
+            # Comentarios
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS comentarios (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT NOT NULL,
+                    mensaje TEXT NOT NULL,
+                    fecha_hora TIMESTAMP NOT NULL
+                )
+            """)
+            conn.commit()
 
-    with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
-        conn.execute('''
-            CREATE TABLE pedidos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT,
-                cancion TEXT,
-                dedicatoria TEXT,
-                artista TEXT,
-                fecha_hora TEXT
-            )
-        ''')
+            # Limpiar registros con más de 7 días
+            cur.execute("DELETE FROM pedidos WHERE fecha_hora < NOW() - INTERVAL '7 days'")
+            cur.execute("DELETE FROM comentarios WHERE fecha_hora < NOW() - INTERVAL '7 days'")
+            conn.commit()
 
-        conn.execute('''
-            CREATE TABLE comentarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT,
-                mensaje TEXT,
-                fecha_hora TEXT
-            )
-        ''')
-
-# Llamamos a init_db aquí para que se ejecute al importar el módulo,
-# es decir, cuando Gunicorn o cualquier otro servidor arranque la app
+# Llamamos al iniciar la app
 init_db()
 
+# --- UTILIDAD HORA LOCAL ---
+def obtener_hora_local(fecha_utc, tz_str='America/Guayaquil'):
+    tz = pytz.timezone(tz_str)
+    return fecha_utc.astimezone(tz)
+
+# --- RUTAS ---
 @app.route('/')
 def index():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row  # ✅ Esto hace que fetchall devuelva diccionarios
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT nombre, cancion, dedicatoria, artista, fecha_hora FROM pedidos ORDER BY id DESC")
+            pedidos = [
+                {
+                    "nombre": r[0],
+                    "cancion": r[1],
+                    "dedicatoria": r[2],
+                    "artista": r[3],
+                    "fecha_hora": obtener_hora_local(r[4]).strftime('%Y-%m-%d %H:%M:%S')
+                } for r in cur.fetchall()
+            ]
 
-        pedidos = conn.execute(
-            'SELECT nombre, cancion, dedicatoria, artista, fecha_hora FROM pedidos ORDER BY id DESC'
-        ).fetchall()
+            cur.execute("SELECT nombre, mensaje, fecha_hora FROM comentarios ORDER BY id DESC")
+            comentarios = [
+                {
+                    "nombre": r[0],
+                    "mensaje": r[1],
+                    "fecha_hora": obtener_hora_local(r[2]).strftime('%Y-%m-%d %H:%M:%S')
+                } for r in cur.fetchall()
+            ]
 
-        comentarios = conn.execute(
-            'SELECT nombre, mensaje, fecha_hora FROM comentarios ORDER BY id DESC'
-        ).fetchall()
-
-    # ruta_imgs = os.path.join(app.static_folder, 'img')
-    # imagenes = [f'img/{img}' for img in sorted(os.listdir(ruta_imgs)) if img.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
-
+    # Ejemplo de imágenes
     imagenes = [
         "https://cdn.donmai.us/sample/ff/5c/__yuel_granblue_fantasy_drawn_by_ma_ma_gobu__sample-ff5c88a1fbe0268b4a541066eeec2283.jpg",
         "https://cdn.donmai.us/sample/f9/b1/__aoba_moca_bang_dream_drawn_by_junji_17__sample-f9b134acb411baf52613e5e95d7fd9db.jpg",
@@ -77,11 +117,55 @@ def index():
         "https://cdn.donmai.us/sample/40/d3/__nagasaki_soyo_bang_dream_and_1_more_drawn_by_e20__sample-40d39c975e1462533dc075b45e2eea90.jpg",
     ]
 
-    # Convertir Row objects a diccionarios normales
-    pedidos = [dict(p) for p in pedidos]
-    comentarios = [dict(c) for c in comentarios]
-
     return render_template('index.html', pedidos=pedidos, comentarios=comentarios, imagenes=imagenes)
+
+# --- Registro/Login igual ---
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    if not data:
+        return {"error": "No se recibieron datos"}, 400
+
+    username = data.get('username')
+    email = data.get('email', '').lower()
+    password = data.get('password')
+    if not username or not email or not password:
+        return {"error": "Faltan campos"}, 400
+
+    hashed_password = generate_password_hash(password)
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO usuarios (username, email, password) VALUES (%s, %s, %s)",
+                    (username, email, hashed_password)
+                )
+                conn.commit()
+        return {
+            "message": "Usuario registrado con éxito",
+            "usuario": {"username": username, "email": email}
+        }, 201
+    except psycopg2.Error:
+        return {"error": "El email ya está registrado o hubo un problema"}, 400
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    if not data:
+        return {"error": "No se recibieron datos"}, 400
+
+    username = data.get('username', '')
+    password = data.get('password')
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, username, email, password FROM usuarios WHERE username = %s", (username,))
+            user = cur.fetchone()
+
+    if user and check_password_hash(user[3], password):
+        return {"message": "Login exitoso", "usuario": {"id": user[0], "username": user[1], "email": user[2]}}, 200
+    return {"error": "Credenciales incorrectas"}, 401
 
 @app.route('/pedido', methods=['POST'])
 def pedido():
@@ -89,43 +173,41 @@ def pedido():
     cancion = request.form['cancion']
     dedicatoria = request.form.get('dedicatoria', '')
     artista = request.form.get('artista', '')
-    fecha_hora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    fecha_hora = datetime.utcnow()
 
-    with sqlite3.connect('pedidos.db') as conn:
-        conn.execute(
-            'INSERT INTO pedidos (nombre, cancion, dedicatoria, artista, fecha_hora) VALUES (?, ?, ?, ?, ?)',
-            (nombre, cancion, dedicatoria, artista, fecha_hora)
-        )
-        conn.commit()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO pedidos (nombre, cancion, dedicatoria, artista, fecha_hora) VALUES (%s,%s,%s,%s,%s)",
+                (nombre, cancion, dedicatoria, artista, fecha_hora)
+            )
+            conn.commit()
 
     socketio.emit('nuevo_pedido', {
-    'nombre': nombre,
-    'cancion': cancion,
-    'dedicatoria': dedicatoria,
-    'artista': artista,
-    'fecha_hora': fecha_hora
-}, to=None)
+        'nombre': nombre, 'cancion': cancion, 'dedicatoria': dedicatoria,
+        'artista': artista, 'fecha_hora': fecha_hora.strftime('%Y-%m-%d %H:%M:%S')
+    })
     return '', 204
 
 @app.route('/comentario', methods=['POST'])
 def comentario():
     nombre = request.form['nombre']
     mensaje = request.form['mensaje']
-    fecha_hora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    fecha_hora = datetime.utcnow()
 
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            'INSERT INTO comentarios (nombre, mensaje, fecha_hora) VALUES (?, ?, ?)',
-            (nombre, mensaje, fecha_hora)
-        )
-        conn.commit()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO comentarios (nombre, mensaje, fecha_hora) VALUES (%s,%s,%s)",
+                (nombre, mensaje, fecha_hora)
+            )
+            conn.commit()
 
     socketio.emit('nuevo_comentario', {
-        'nombre': nombre,
-        'mensaje': mensaje,
-        'fecha_hora': fecha_hora
-    }, to=None)
+        'nombre': nombre, 'mensaje': mensaje,
+        'fecha_hora': fecha_hora.strftime('%Y-%m-%d %H:%M:%S')
+    })
     return '', 204
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=8000)  # Solo para desarrollo local
+    socketio.run(app, host='0.0.0.0', port=8000, reload=True)

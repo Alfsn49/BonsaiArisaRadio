@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es" class="dark">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,245 +12,311 @@
       theme: {
         extend: {
           colors: {
-            pink: {
-              200: '#fecaca',
-              400: '#f472b6',
-              500: '#ec4899',
-              600: '#db2777',
-            },
-            purple: {
-              200: '#e9d5ff',
-            },
-            indigo: {
-              200: '#c7d2fe',
-            }
+            pink: { 200: '#fecaca', 400: '#f472b6', 500: '#ec4899', 600: '#db2777' },
+            purple: { 200: '#e9d5ff' },
+            indigo: { 200: '#c7d2fe' }
           }
         }
       }
     }
   </script>
 </head>
+
 <body class="min-h-screen bg-gradient-to-br from-pink-200 via-purple-200 to-indigo-200 p-6 font-sans transition-colors duration-300">
 
-  <!-- Toaster/Notificaciones (simulado) -->
+  <!-- Toaster/Notificaciones -->
   <div id="toaster" class="fixed top-4 right-4 z-50 space-y-2 hidden"></div>
+
+  <!-- Botones de sesión -->
+  <div class="flex justify-end gap-4 mb-6">
+    <button id="btnLogin" class="bg-white/70 px-4 py-2 rounded-lg shadow hover:bg-pink-200">Iniciar sesión</button>
+    <button id="btnRegister" class="bg-white/70 px-4 py-2 rounded-lg shadow hover:bg-pink-200">Registrarse</button>
+    <button id="btnLogout" class="hidden bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600">Cerrar sesión</button>
+  </div>
 
   <h1 class="text-4xl md:text-5xl font-extrabold text-center text-pink-600 drop-shadow mb-8">
     🎧 Bonsai Arisa 2.0 - Radio Anime
   </h1>
 
-  <!-- Contenedor principal: 3 columnas en desktop -->
+  <!-- Contenedor principal -->
   <div class="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
 
     <!-- Columna 1: Slider -->
     <div class="w-full lg:w-1/3 rounded-2xl shadow-lg overflow-hidden relative min-h-[300px] sm:min-h-[320px] md:min-h-[550px] lg:min-h-[600px] bg-black flex items-center justify-center">
       {% if imagenes %}
-  <img id="sliderImage" src="{{ imagenes[0] }}" class="w-full h-full object-cover transition-opacity duration-500" />
-{% else %}
-  <span class="text-white p-4">No hay imágenes</span>
-{% endif %}
-
+      <img id="sliderImage" src="{{ imagenes[0] }}" class="w-full h-full object-cover transition-opacity duration-500" />
+      {% else %}
+      <span class="text-white p-4">No hay imágenes</span>
+      {% endif %}
     </div>
 
     <!-- Columna 2: Formulario + Lista de pedidos -->
     <div class="w-full lg:w-1/3 flex flex-col gap-6">
-      <!-- Formulario -->
-      <form id="pedidoForm" class="space-y-4 p-6 rounded-2xl shadow-lg bg-white/70 backdrop-blur-md">
-        <h2 class="text-xl font-semibold text-gray-700 mb-2">Haz tu pedido 🎶</h2>
-        <input name="nombre" placeholder="Tu nombre" required class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
-        <input name="cancion" placeholder="Nombre de la canción" required class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
-        <input name="artista" placeholder="Artista" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
-        <textarea name="dedicatoria" placeholder="Dedicatoria (opcional)" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900"></textarea>
-        <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white w-full py-3 rounded-lg font-semibold shadow-md transition-all duration-300">
-          🎵 Enviar pedido
-        </button>
-      </form>
+
+      <!-- Formulario de pedido -->
+      <div id="pedidoContainer">
+        <form id="pedidoForm" class="space-y-4 p-6 rounded-2xl shadow-lg bg-white/70 backdrop-blur-md">
+          <h2 class="text-xl font-semibold text-gray-700 mb-2">Haz tu pedido 🎶</h2>
+          <input name="cancion" placeholder="Nombre de la canción" required
+            class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
+          <input name="artista" placeholder="Artista"
+            class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900" />
+          <textarea name="dedicatoria" placeholder="Dedicatoria (opcional)"
+            class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white placeholder-gray-500 text-gray-900"></textarea>
+          <button type="submit"
+            class="bg-pink-500 hover:bg-pink-600 text-white w-full py-3 rounded-lg font-semibold shadow-md transition-all duration-300">
+            🎵 Enviar pedido
+          </button>
+        </form>
+
+        <p id="pedidoMensaje" class="text-red-500 font-medium p-6 rounded-2xl shadow-lg bg-white/70 backdrop-blur-md hidden">
+          Debes iniciar sesión para enviar pedidos
+        </p>
+      </div>
 
       <!-- Lista de pedidos -->
       <div id="listaPedidos" class="bg-white/70 backdrop-blur-md p-6 rounded-2xl shadow-lg max-h-[500px] overflow-y-auto">
         <h2 class="text-xl font-semibold text-gray-700 mb-4">📜 Lista de pedidos</h2>
         <div class="space-y-4">
           {% if pedidos %}
-            {% for pedido in pedidos %}
-              <div class="flex items-start space-x-3 bg-white rounded-lg shadow p-3">
-                <div class="w-10 h-10 rounded-full bg-pink-400 flex items-center justify-center text-white font-bold">
-                  {{ pedido.nombre[0]|upper }}
-                </div>
-                <div>
-                  <strong class="text-pink-600">{{ pedido.cancion }}</strong> 
-                  <span class="text-gray-700">- {{ pedido.artista or "Desconocido" }}</span>
-                  <div class="text-sm text-gray-600">
-                    Pedido por <span class="font-medium">{{ pedido.nombre }}</span>
-                  </div>
-                  {% if pedido.dedicatoria %}
-                    <div class="text-gray-500 italic">&quot;{{ pedido.dedicatoria }}&quot;</div>
-                  {% endif %}
-                  <div class="text-xs text-gray-400">{{ pedido.fecha_hora }}</div>
-                </div>
-              </div>
-            {% endfor %}
+          {% for pedido in pedidos %}
+          <div class="flex items-start space-x-3 bg-white rounded-lg shadow p-3">
+            <div class="w-10 h-10 rounded-full bg-pink-400 flex items-center justify-center text-white font-bold">
+              {{ pedido.nombre[0]|upper }}
+            </div>
+            <div>
+              <strong class="text-pink-600">{{ pedido.cancion }}</strong>
+              <span class="text-gray-700">- {{ pedido.artista or "Desconocido" }}</span>
+              <div class="text-sm text-gray-600">Pedido por <span class="font-medium">{{ pedido.nombre }}</span></div>
+              {% if pedido.dedicatoria %}
+              <div class="text-gray-500 italic">&quot;{{ pedido.dedicatoria }}&quot;</div>
+              {% endif %}
+              <div class="text-xs text-gray-400">{{ pedido.fecha_hora }}</div>
+            </div>
+          </div>
+          {% endfor %}
           {% else %}
-            <p class="text-gray-500 italic">No hay pedidos aún</p>
+          <p class="text-gray-500 italic">No hay pedidos aún</p>
           {% endif %}
         </div>
       </div>
+
     </div>
 
     <!-- Columna 3: Comentarios -->
     <div class="w-full lg:w-1/3 flex flex-col gap-4">
+      <div id="comentarioContainer">
+        <form id="comentarioForm" class="flex flex-col gap-3 mt-2">
+          <textarea name="mensaje" placeholder="Escribe tu comentario"
+            class="w-full p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white text-gray-900 text-lg resize-none h-40"
+            required></textarea>
+          <button type="submit"
+            class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-all duration-300 text-lg">
+            Enviar
+          </button>
+        </form>
+        <p id="comentarioMensaje" class="text-red-500 font-medium p-4 rounded-2xl shadow-lg bg-white/70 backdrop-blur-md hidden">
+          Debes iniciar sesión para enviar comentarios
+        </p>
+      </div>
+
       <div id="comentarios" class="bg-white p-6 rounded-2xl shadow-lg max-h-[700px] overflow-y-auto flex-1">
         <h2 class="text-2xl font-semibold text-gray-800 mb-4">💬 Comentarios en vivo</h2>
         <div class="space-y-3">
           {% if comentarios %}
-            {% for c in comentarios %}
-              <div class="bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between">
-                <div class="text-gray-900">
-                  <span class="font-bold text-pink-600">{{ c.nombre }}:</span> {{ c.mensaje }}
-                </div>
-                <div class="text-xs text-gray-500 mt-2">{{ c.fecha_hora }}</div>
-              </div>
-            {% endfor %}
+          {% for c in comentarios %}
+          <div class="bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between">
+            <div class="text-gray-900"><span class="font-bold text-pink-600">{{ c.nombre }}:</span> {{ c.mensaje }}</div>
+            <div class="text-xs text-gray-500 mt-2">{{ c.fecha_hora }}</div>
+          </div>
+          {% endfor %}
           {% else %}
-            <p class="text-gray-500 italic text-center">No hay comentarios aún</p>
+          <p class="text-gray-500 italic text-center">No hay comentarios aún</p>
           {% endif %}
         </div>
       </div>
-
-      <!-- Formulario de comentarios -->
-      <form id="comentarioForm" class="flex flex-col gap-3 mt-2">
-        <input name="nombre" placeholder="Tu nombre" class="w-full p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white text-gray-900 text-lg" required />
-        <textarea name="mensaje" placeholder="Escribe tu comentario" class="w-full p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white text-gray-900 text-lg resize-none h-40" required></textarea>
-        <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-all duration-300 text-lg">
-          Enviar
-        </button>
-      </form>
     </div>
 
   </div>
 
   <!-- Reproductor de radio -->
   <section class="flex justify-center mt-10">
-    <iframe src="https://zeno.fm/player/bonsai-arisa" width="100%" max-width="575" height="250" frameborder="0" scrolling="no" class="rounded-xl shadow-lg" allow="autoplay"></iframe>
+    <iframe src="https://zeno.fm/player/bonsai-arisa" width="100%" max-width="575" height="250" frameborder="0"
+      scrolling="no" class="rounded-xl shadow-lg" allow="autoplay"></iframe>
   </section>
+
+  <!-- Modal Login/Register -->
+  <div id="authModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-md relative">
+      <button id="closeModal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">✖</button>
+      <h2 id="modalTitle" class="text-2xl font-bold text-pink-600 mb-4"></h2>
+      <form id="authForm" class="space-y-4">
+        <input type="text" name="username" id="usernameInput" placeholder="Nombre de usuario" required
+          class="w-full p-3 border rounded-lg" />
+        <input type="email" name="email" id="emailInput" placeholder="Correo electrónico" class="w-full p-3 border rounded-lg hidden" />
+        <input type="password" name="password" placeholder="Contraseña" required class="w-full p-3 border rounded-lg" />
+        <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white w-full py-3 rounded-lg font-semibold shadow-md">
+          Confirmar
+        </button>
+      </form>
+    </div>
+  </div>
 
   <!-- Slider JS -->
   <script>
     const sliderImage = document.getElementById('sliderImage');
-const imagenes = {{ imagenes | tojson }};
-let index = 0;
+    const imagenes = {{ imagenes | tojson }};
+    let index = 0;
 
-const cambiarImagen = () => {
-  if (!imagenes || !imagenes.length) return;
-  index = (index + 1) % imagenes.length;
-  const nuevaSrc = imagenes[index];  // ya es URL directa
-  
-  sliderImage.style.opacity = 0;
-  setTimeout(() => {
-    sliderImage.src = nuevaSrc;
-    sliderImage.style.opacity = 1;
-  }, 500);
-};
+    const cambiarImagen = () => {
+      if (!imagenes || !imagenes.length) return;
+      index = (index + 1) % imagenes.length;
+      sliderImage.style.opacity = 0;
+      setTimeout(() => {
+        sliderImage.src = imagenes[index];
+        sliderImage.style.opacity = 1;
+      }, 500);
+    };
 
-if (imagenes && imagenes.length > 1) {
-  setInterval(cambiarImagen, 4000);
-}
+    if (imagenes && imagenes.length > 1) setInterval(cambiarImagen, 4000);
   </script>
 
-  <!-- Socket.io para pedidos en tiempo real -->
   <script>
     const form = document.getElementById('pedidoForm');
     const comentarioForm = document.getElementById('comentarioForm');
     const lista = document.getElementById('listaPedidos');
-    const comentariosContainer = document.getElementById('comentarios');
-    const toaster = document.getElementById('toaster');
     const socket = io(window.location.origin, { path: '/socket.io' });
+    const toaster = document.getElementById('toaster');
 
-    // Función para mostrar notificaciones
+    // --- TOAST ---
     function showToast(message, type = 'success') {
       const toast = document.createElement('div');
       toast.className = `p-4 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
       toast.textContent = message;
       toaster.appendChild(toast);
       toaster.classList.remove('hidden');
-      
-      setTimeout(() => {
-        toast.remove();
-        if (toaster.children.length === 0) {
-          toaster.classList.add('hidden');
-        }
-      }, 3000);
+      setTimeout(() => { toast.remove(); if (!toaster.children.length) toaster.classList.add('hidden'); }, 3000);
     }
 
-    form.addEventListener('submit', async (e) => {
+    // --- AUTH ---
+    const btnLogin = document.getElementById("btnLogin");
+    const btnRegister = document.getElementById("btnRegister");
+    const btnLogout = document.getElementById("btnLogout");
+    const authModal = document.getElementById("authModal");
+    const closeModal = document.getElementById("closeModal");
+    const modalTitle = document.getElementById("modalTitle");
+    const authForm = document.getElementById("authForm");
+
+    let authMode = "login";
+
+    btnLogin.onclick = () => { authMode = "login"; modalTitle.textContent = "Iniciar sesión"; emailInput.classList.add("hidden"); authModal.classList.remove("hidden"); };
+    btnRegister.onclick = () => { authMode = "register"; modalTitle.textContent = "Registrarse"; emailInput.classList.remove("hidden"); authModal.classList.remove("hidden"); };
+    closeModal.onclick = () => authModal.classList.add("hidden");
+
+    authForm.onsubmit = async e => {
+  e.preventDefault();
+
+  const username = document.getElementById("usernameInput").value;
+  const email = document.getElementById("emailInput").value;
+  const password = authForm.querySelector('input[name="password"]').value;
+
+  const payload = { username, password };
+  if(authMode === "register") payload.email = email;
+
+  const url = authMode === "login" ? "/login" : "/register";
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if(res.ok){
+      const data = await res.json();
+      localStorage.setItem("usuario", JSON.stringify({ username: data.usuario.username, email: data.usuario.email }));
+      showToast(authMode==="login" ? "Inicio de sesión exitoso" : "Usuario registrado con éxito");
+      authModal.classList.add("hidden");
+      updateUI();
+    } else {
+      const err = await res.json();
+      showToast(err.message || "Error en autenticación", "error");
+    }
+  } catch(error){
+    showToast("Error de conexión", "error");
+  }
+};
+
+    btnLogout.onclick = () => { localStorage.removeItem("usuario"); showToast("Sesión cerrada"); updateUI(); };
+
+    function updateUI() {
+      const user = JSON.parse(localStorage.getItem("usuario") || "null");
+
+  // Mostrar/ocultar formulario y mensajes
+  pedidoForm.style.display = user ? "block" : "none";
+  document.getElementById("pedidoMensaje").style.display = user ? "none" : "block";
+  comentarioForm.style.display = user ? "flex" : "none";
+  document.getElementById("comentarioMensaje").style.display = user ? "none" : "block";
+
+  // Mostrar/ocultar botones de sesión
+  btnLogin.style.display = user ? "none" : "inline-block";
+  btnRegister.style.display = user ? "none" : "inline-block";
+  btnLogout.style.display = user ? "inline-block" : "none";
+    }
+    updateUI();
+
+    // --- PEDIDO ---
+    form.onsubmit = async e => {
       e.preventDefault();
+      const usuario = JSON.parse(localStorage.getItem("usuario"));
+      if (!usuario) return showToast("Debes iniciar sesión para enviar pedidos", "error");
       const data = new FormData(form);
+      data.append("nombre", usuario.username);
       try {
-        const response = await fetch('/pedido', { method: 'POST', body: data });
-        if (response.ok) {
-          showToast('Pedido enviado correctamente');
-          form.reset();
-        } else {
-          showToast('Error al enviar el pedido', 'error');
-        }
-      } catch (error) {
-        showToast('Error de conexión', 'error');
-      }
-    });
+        const res = await fetch("/pedido", { method: "POST", body: data });
+        if (res.ok) { showToast("Pedido enviado"); form.reset(); }
+        else showToast("Error al enviar el pedido", "error");
+      } catch (error) { showToast("Error de conexión", "error"); }
+    };
 
-    comentarioForm.addEventListener('submit', async (e) => {
+    // --- COMENTARIO ---
+    comentarioForm.onsubmit = async e => {
       e.preventDefault();
-      const formData = new FormData(comentarioForm);
+      const usuario = JSON.parse(localStorage.getItem("usuario"));
+      console.log(usuario)
+      if (!usuario) return showToast("Debes iniciar sesión para enviar comentarios", "error");
+      const data = new FormData(comentarioForm);
+      data.append("nombre", usuario.username);
       try {
-        const response = await fetch('/comentario', { 
-          method: 'POST', 
-          body: formData 
-        });
-        if (response.ok) {
-          comentarioForm.reset();
-        }
-      } catch (error) {
-        showToast('Error al enviar comentario', 'error');
-      }
-    });
+        const res = await fetch("/comentario", { method: "POST", body: data });
+        if (res.ok) comentarioForm.reset(); else showToast("Error al enviar comentario", "error");
+      } catch (error) { showToast("Error de conexión", "error"); }
+    };
 
+    // --- SOCKETS ---
     socket.on('nuevo_pedido', data => {
-      const div = document.createElement('div');
+      const div = document.createElement("div");
       div.className = "flex items-start space-x-3 bg-white rounded-lg shadow p-3";
       div.innerHTML = `
-        <div class="w-10 h-10 rounded-full bg-pink-400 flex items-center justify-center text-white font-bold">${data.nombre.charAt(0).toUpperCase()}</div>
+        <div class="w-10 h-10 rounded-full bg-pink-400 flex items-center justify-center text-white font-bold">${data.nombre[0].toUpperCase()}</div>
         <div>
-          <strong class="text-pink-600">${data.cancion}</strong> <span class="text-gray-700">- ${data.artista || "Desconocido"}</span>
+          <strong class="text-pink-600">${data.cancion}</strong> <span class="text-gray-700">- ${data.artista||"Desconocido"}</span>
           <div class="text-sm text-gray-600">Pedido por <span class="font-medium">${data.nombre}</span></div>
-          ${data.dedicatoria ? `<div class="text-gray-500 italic">&quot;${data.dedicatoria}&quot;</div>` : ''}
+          ${data.dedicatoria ? `<div class="text-gray-500 italic">"${data.dedicatoria}"</div>` : ""}
           <div class="text-xs text-gray-400">${new Date(data.fecha_hora).toLocaleString()}</div>
-        </div>
-      `;
-      lista.querySelector('.space-y-4').prepend(div);
-      
-      // Si no hay pedidos, eliminar el mensaje de "no hay pedidos"
-      const noPedidosMsg = lista.querySelector('p');
-      if (noPedidosMsg) {
-        noPedidosMsg.remove();
-      }
+        </div>`;
+      lista.querySelector(".space-y-4").prepend(div);
+      const noMsg = lista.querySelector("p"); if(noMsg) noMsg.remove();
     });
 
     socket.on('nuevo_comentario', data => {
-  const comentarioDiv = document.createElement('div');
-  comentarioDiv.className = 'bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between';
-  comentarioDiv.innerHTML = `
-    <div class="text-gray-900">
-      <span class="font-bold text-pink-600">${data.nombre}:</span> ${data.mensaje}
-    </div>
-    <div class="text-xs text-gray-500 mt-2">${new Date(data.fecha_hora).toLocaleTimeString()}</div>
-  `;
-
-  const comentariosList = document.querySelector('#comentarios .space-y-3');
-  comentariosList.prepend(comentarioDiv);
-
-  // Elimina el mensaje "No hay comentarios" si existía
-  const noComentariosMsg = document.querySelector('#comentarios p');
-  if (noComentariosMsg) noComentariosMsg.remove();
-});
+      const div = document.createElement("div");
+      div.className = "bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between";
+      div.innerHTML = `<div class="text-gray-900"><span class="font-bold text-pink-600">${data.nombre}:</span> ${data.mensaje}</div>
+        <div class="text-xs text-gray-500 mt-2">${new Date(data.fecha_hora).toLocaleTimeString()}</div>`;
+      document.querySelector("#comentarios .space-y-3").prepend(div);
+      const noMsg = document.querySelector("#comentarios p"); if(noMsg) noMsg.remove();
+    });
   </script>
 
 </body>
