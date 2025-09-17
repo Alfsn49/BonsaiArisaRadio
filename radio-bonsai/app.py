@@ -9,6 +9,7 @@ from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from flask_mail import Mail, Message
+import sqlite3
 import os
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -48,9 +49,15 @@ socketio = SocketIO(
 def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
+def get_sqlite_connection():
+    conn = sqlite3.connect("pedidos.db", check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 # --- INIT DB ---
 def init_db():
-    with get_connection() as conn:
+    # --- Postgres ---
+    with get_pg_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS usuarios (
@@ -62,40 +69,41 @@ def init_db():
                 )
             """)
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS pedidos (
+                CREATE TABLE IF NOT EXISTS reset_tokens (
                     id SERIAL PRIMARY KEY,
-                    nombre TEXT NOT NULL,
-                    cancion TEXT NOT NULL,
-                    dedicatoria TEXT,
-                    artista TEXT,
-                    fecha_hora TIMESTAMP NOT NULL
+                    user_id INT REFERENCES usuarios(id),
+                    token TEXT UNIQUE NOT NULL,
+                    expiracion TIMESTAMP NOT NULL
                 )
             """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS comentarios (
-                    id SERIAL PRIMARY KEY,
-                    nombre TEXT NOT NULL,
-                    mensaje TEXT NOT NULL,
-                    fecha_hora TIMESTAMP NOT NULL
-                )
-            """)
-            cur.execute("""
-    CREATE TABLE IF NOT EXISTS reset_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES usuarios(id),
-        token TEXT UNIQUE NOT NULL,
-        expiracion TIMESTAMP NOT NULL
-    )
-""")
-            # índices para performance
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_fecha ON pedidos(fecha_hora DESC)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_comentarios_fecha ON comentarios(fecha_hora DESC)")
             conn.commit()
 
-            # limpiar registros >7 días
-            cur.execute("DELETE FROM pedidos WHERE fecha_hora < NOW() - INTERVAL '7 days'")
-            cur.execute("DELETE FROM comentarios WHERE fecha_hora < NOW() - INTERVAL '7 days'")
-            conn.commit()
+    # --- SQLite ---
+    with get_sqlite_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS pedidos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                cancion TEXT NOT NULL,
+                dedicatoria TEXT,
+                artista TEXT,
+                fecha_hora TIMESTAMP NOT NULL
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comentarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                mensaje TEXT NOT NULL,
+                fecha_hora TIMESTAMP NOT NULL
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_fecha ON pedidos(fecha_hora DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_comentarios_fecha ON comentarios(fecha_hora DESC)")
+        cur.execute("DELETE FROM pedidos WHERE fecha_hora < datetime('now','-7 day')")
+        cur.execute("DELETE FROM comentarios WHERE fecha_hora < datetime('now','-7 day')")
+        conn.commit()
 
 init_db()
 
@@ -107,38 +115,30 @@ def obtener_hora_local(fecha_utc, tz_str='America/Guayaquil'):
 # --- RUTAS ---
 @app.route('/')
 def index():
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT nombre, cancion, dedicatoria, artista, fecha_hora 
-                FROM pedidos 
-                ORDER BY fecha_hora DESC 
-                LIMIT 150
-            """)
-            pedidos = [
-                {
-                    "nombre": r[0],
-                    "cancion": r[1],
-                    "dedicatoria": r[2],
-                    "artista": r[3],
-                    "fecha_hora": obtener_hora_local(r[4]).strftime('%Y-%m-%d %H:%M:%S')
-                } for r in cur.fetchall()
-            ]
+    # pedidos y comentarios vienen de SQLite
+    with get_sqlite_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT nombre, cancion, dedicatoria, artista, fecha_hora FROM pedidos ORDER BY fecha_hora DESC LIMIT 150")
+        pedidos = [
+            {
+                "nombre": r["nombre"],
+                "cancion": r["cancion"],
+                "dedicatoria": r["dedicatoria"],
+                "artista": r["artista"],
+                "fecha_hora": r["fecha_hora"]
+            } for r in cur.fetchall()
+        ]
 
-            cur.execute("""
-                SELECT nombre, mensaje, fecha_hora 
-                FROM comentarios 
-                ORDER BY fecha_hora DESC 
-                LIMIT 150
-            """)
-            comentarios = [
-                {
-                    "nombre": r[0],
-                    "mensaje": r[1],
-                    "fecha_hora": obtener_hora_local(r[2]).strftime('%Y-%m-%d %H:%M:%S')
-                } for r in cur.fetchall()
-            ]
+        cur.execute("SELECT nombre, mensaje, fecha_hora FROM comentarios ORDER BY fecha_hora DESC LIMIT 150")
+        comentarios = [
+            {
+                "nombre": r["nombre"],
+                "mensaje": r["mensaje"],
+                "fecha_hora": r["fecha_hora"]
+            } for r in cur.fetchall()
+        ]
 
+    # las imágenes siguen igual
     imagenes = [
         "https://cdn.donmai.us/sample/ff/5c/__yuel_granblue_fantasy_drawn_by_ma_ma_gobu__sample-ff5c88a1fbe0268b4a541066eeec2283.jpg",
         "https://cdn.donmai.us/sample/f9/b1/__aoba_moca_bang_dream_drawn_by_junji_17__sample-f9b134acb411baf52613e5e95d7fd9db.jpg",
@@ -148,8 +148,8 @@ def index():
         "https://cdn.donmai.us/original/d9/5e/__togawa_sakiko_bang_dream_and_1_more_drawn_by_kanpozhan__d95e5564729dd925a4bcba4433f58159.png",
         "https://cdn.donmai.us/sample/40/d3/__nagasaki_soyo_bang_dream_and_1_more_drawn_by_e20__sample-40d39c975e1462533dc075b45e2eea90.jpg",
     ]
-
     return render_template('index.html', pedidos=pedidos, comentarios=comentarios, imagenes=imagenes)
+
 
 # --- Registro/Login ---
 @app.route('/register', methods=['POST'])
@@ -271,13 +271,13 @@ def pedido():
     artista = request.form.get('artista', '')
     fecha_hora = datetime.utcnow()
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO pedidos (nombre, cancion, dedicatoria, artista, fecha_hora) VALUES (%s,%s,%s,%s,%s)",
-                (nombre, cancion, dedicatoria, artista, fecha_hora)
-            )
-            conn.commit()
+    with get_sqlite_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO pedidos (nombre, cancion, dedicatoria, artista, fecha_hora) VALUES (?, ?, ?, ?, ?)",
+            (nombre, cancion, dedicatoria, artista, fecha_hora)
+        )
+        conn.commit()
 
     socketio.emit('nuevo_pedido', {
         'nombre': nombre, 'cancion': cancion, 'dedicatoria': dedicatoria,
@@ -291,13 +291,13 @@ def comentario():
     mensaje = request.form['mensaje']
     fecha_hora = datetime.utcnow()
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO comentarios (nombre, mensaje, fecha_hora) VALUES (%s,%s,%s)",
-                (nombre, mensaje, fecha_hora)
-            )
-            conn.commit()
+    with get_sqlite_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO comentarios (nombre, mensaje, fecha_hora) VALUES (?, ?, ?)",
+            (nombre, mensaje, fecha_hora)
+        )
+        conn.commit()
 
     socketio.emit('nuevo_comentario', {
         'nombre': nombre, 'mensaje': mensaje,
