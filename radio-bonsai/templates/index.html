@@ -21,6 +21,8 @@
       }
     }
   </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+
 </head>
 
 <body class="min-h-screen bg-gradient-to-br from-pink-200 via-purple-200 to-indigo-200 p-6 font-sans transition-colors duration-300">
@@ -105,38 +107,59 @@
     </div>
 
     <!-- Columna 3: Comentarios -->
-    <div class="w-full lg:w-1/3 flex flex-col gap-4">
-      <div id="comentarioContainer">
-        <form id="comentarioForm" class="flex flex-col gap-3 mt-2">
-          <textarea name="mensaje" placeholder="Escribe tu comentario"
-            class="w-full p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white text-gray-900 text-lg resize-none h-40"
-            required></textarea>
-          <button type="submit"
-            class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-all duration-300 text-lg">
-            Enviar
-          </button>
-        </form>
-        <p id="comentarioMensaje" class="text-red-500 font-medium p-4 rounded-2xl shadow-lg bg-white/70 backdrop-blur-md hidden">
-          Debes iniciar sesión para enviar comentarios
-        </p>
+<div class="w-full lg:w-1/3 flex flex-col gap-4">
+  <!-- Formulario de comentarios -->
+  <div id="comentarioContainer">
+    <form id="comentarioForm" class="flex flex-col gap-3 mt-2">
+      <div class="relative">
+        <!-- Textarea -->
+        <textarea id="comentarioInput" name="mensaje" placeholder="Escribe tu comentario"
+          class="w-full p-4 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white text-gray-900 text-lg resize-none h-40"
+          required></textarea>
+
+        <!-- Botón de emojis dentro del textarea -->
+        <button type="button" id="emojiBtn"
+          class="absolute bottom-3 right-3 text-2xl hover:scale-110 transition">😊</button>
+
+        <!-- Picker de emojis que se despliega sobre el textarea -->
+        <emoji-picker id="emojiPicker" 
+          class="absolute top-full right-3 hidden z-50 shadow-lg max-h-60 overflow-y-auto"></emoji-picker>
       </div>
 
-      <div id="comentarios" class="bg-white p-6 rounded-2xl shadow-lg max-h-[700px] overflow-y-auto flex-1">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">💬 Comentarios en vivo</h2>
-        <div class="space-y-3">
-          {% if comentarios %}
-          {% for c in comentarios %}
-          <div class="bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between">
-            <div class="text-gray-900"><span class="font-bold text-pink-600">{{ c.nombre }}:</span> {{ c.mensaje }}</div>
-            <div class="text-xs text-gray-500 mt-2">{{ c.fecha_hora }}</div>
-          </div>
-          {% endfor %}
-          {% else %}
-          <p class="text-gray-500 italic text-center">No hay comentarios aún</p>
-          {% endif %}
+      <!-- Botón enviar -->
+      <button type="submit"
+        class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-all duration-300 text-lg">
+        Enviar
+      </button>
+    </form>
+
+    <p id="comentarioMensaje"
+      class="text-red-500 font-medium p-4 rounded-2xl shadow-lg bg-white/70 backdrop-blur-md hidden">
+      Debes iniciar sesión para enviar comentarios
+    </p>
+  </div>
+
+  <!-- Lista de comentarios -->
+  <div id="comentarios" class="bg-white p-6 rounded-2xl shadow-lg max-h-[700px] overflow-y-auto flex-1">
+    <h2 class="text-2xl font-semibold text-gray-800 mb-4">💬 Comentarios en vivo</h2>
+    <div class="space-y-3">
+      {% if comentarios %}
+      {% for c in comentarios %}
+      <div class="bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between">
+        <div class="text-gray-900">
+          <span class="font-bold text-pink-600">{{ c.nombre }}:</span> {{ c.mensaje }}
         </div>
+        <div class="text-xs text-gray-500 mt-2">{{ c.fecha_hora }}</div>
       </div>
+      {% endfor %}
+      {% else %}
+      <p class="text-gray-500 italic text-center">No hay comentarios aún</p>
+      {% endif %}
     </div>
+  </div>
+</div>
+
+
 
   </div>
 
@@ -177,6 +200,30 @@
     </form>
   </div>
 </div>
+
+<script>
+  const emojiBtn = document.getElementById("emojiBtn");
+  const emojiPicker = document.getElementById("emojiPicker");
+  const comentarioInput = document.getElementById("comentarioInput");
+
+  // Mostrar/ocultar picker
+  emojiBtn.addEventListener("click", () => {
+    emojiPicker.style.display = emojiPicker.style.display === "none" ? "block" : "none";
+  });
+
+  // Insertar emoji en el textarea
+  emojiPicker.addEventListener("emoji-click", event => {
+    comentarioInput.value += event.detail.unicode;
+    comentarioInput.focus();
+  });
+
+  // Cerrar el picker si haces clic fuera
+  document.addEventListener("click", (e) => {
+    if (!emojiPicker.contains(e.target) && e.target !== emojiBtn) {
+      emojiPicker.style.display = "none";
+    }
+  });
+</script>
 
   <!-- Slider JS -->
   <script>
