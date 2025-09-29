@@ -146,9 +146,10 @@
       {% if comentarios %}
       {% for c in comentarios %}
       <div class="bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between">
-        <div class="text-gray-900">
-          <span class="font-bold text-pink-600">{{ c.nombre }}:</span> {{ c.mensaje }}
-        </div>
+        <div class="text-gray-900 break-words">
+        <span class="font-bold text-pink-600">{{ c.nombre }}:</span> 
+        <span class="comentario-contenido">{{ c.mensaje }}</span>
+      </div>
         <div class="text-xs text-gray-500 mt-2">{{ c.fecha_hora }}</div>
       </div>
       {% endfor %}
@@ -223,6 +224,34 @@
       emojiPicker.style.display = "none";
     }
   });
+
+  function renderComentario(texto) {
+  // Escapar texto plano (evitamos que rompa HTML)
+  let safe = texto.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Primero reemplazamos imágenes
+  safe = safe.replace(/(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp))/gi, 
+    '<img src="$1" alt="imagen" class="max-w-full rounded-lg mt-2 shadow">');
+
+  // Luego reemplazamos links que NO sean imágenes
+  safe = safe.replace(/(https?:\/\/[^\s<"]+)/gi, 
+    (match) => {
+      // Si ya fue reemplazado como imagen, lo ignoramos
+      if(match.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return match;
+      return `<a href="${match}" target="_blank" class="text-blue-600 underline">${match}</a>`;
+    });
+
+  return safe;
+}
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const comentariosExistentes = document.querySelectorAll(".comentario-contenido");
+  comentariosExistentes.forEach(span => {
+    span.innerHTML = renderComentario(span.textContent);
+  });
+});
 </script>
 
   <!-- Slider JS -->
@@ -426,13 +455,24 @@ btnLogout.onclick = () => { localStorage.removeItem("usuario"); showToast("Sesi�
     });
 
     socket.on('nuevo_comentario', data => {
-      const div = document.createElement("div");
-      div.className = "bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between";
-      div.innerHTML = `<div class="text-gray-900"><span class="font-bold text-pink-600">${data.nombre}:</span> ${data.mensaje}</div>
-        <div class="text-xs text-gray-500 mt-2">${new Date(data.fecha_hora).toLocaleTimeString()}</div>`;
-      document.querySelector("#comentarios .space-y-3").prepend(div);
-      const noMsg = document.querySelector("#comentarios p"); if(noMsg) noMsg.remove();
-    });
+  const div = document.createElement("div");
+  div.className = "bg-pink-50 rounded-lg p-4 shadow flex flex-col justify-between";
+
+  div.innerHTML = `
+    <div class="text-gray-900">
+      <span class="font-bold text-pink-600">${data.nombre}:</span> 
+      ${renderComentario(data.mensaje)}
+    </div>
+    <div class="text-xs text-gray-500 mt-2">
+      ${new Date(data.fecha_hora).toLocaleTimeString()}
+    </div>
+  `;
+
+  document.querySelector("#comentarios .space-y-3").prepend(div);
+  const noMsg = document.querySelector("#comentarios p"); 
+  if(noMsg) noMsg.remove();
+});
+
   </script>
 
 </body>
