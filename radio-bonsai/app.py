@@ -8,18 +8,20 @@ patch_psycopg()
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 from flask_cors import CORS
-from flask_mail import Mail, Message
+from flask_mail import Mail
 import sqlite3
 import os
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 import pytz
 import uuid
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+from threading import Thread
+import time
 
 # --- CONFIG ---
 load_dotenv()
@@ -123,6 +125,9 @@ def obtener_hora_local(fecha_utc, tz_str='America/Guayaquil'):
     tz = pytz.timezone(tz_str)
     return fecha_utc.astimezone(tz)
 
+# --- CACHE DE IMÁGENES ---
+IMAGENES_CACHE = []
+REFRESH_INTERVAL = 10 * 60  # 10 minutos
 
 def cargar_imagenes():
     sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTBJwSmSRyJVBX4TvZkTsoxP3W5lszO1mldxvVyJOCKr7bqQeYcCWyPERBxibPWmiTI8lR5knv90y7A/pub?output=xlsx"
@@ -139,6 +144,18 @@ def cargar_imagenes():
     except Exception as e:
         print("❌ Error cargando imágenes desde Google Sheets:", e)
         return []
+
+def refrescar_imagenes_periodicamente():
+    global IMAGENES_CACHE
+    while True:
+        imagenes = cargar_imagenes()
+        if imagenes:
+            IMAGENES_CACHE = imagenes
+            print(f"✅ Se actualizaron {len(IMAGENES_CACHE)} imágenes desde Google Sheets")
+        time.sleep(REFRESH_INTERVAL)
+
+# Arrancar hilo daemon al iniciar
+Thread(target=refrescar_imagenes_periodicamente, daemon=True).start()
 
 # --- RUTAS ---
 @app.route('/')
@@ -166,64 +183,8 @@ def index():
             } for r in cur.fetchall()
         ]
 
-    # # las imágenes siguen igual
-    # imagenes = [
-    #     "https://cdn.donmai.us/sample/ff/5c/__yuel_granblue_fantasy_drawn_by_ma_ma_gobu__sample-ff5c88a1fbe0268b4a541066eeec2283.jpg",
-    #     "https://cdn.donmai.us/sample/f9/b1/__aoba_moca_bang_dream_drawn_by_junji_17__sample-f9b134acb411baf52613e5e95d7fd9db.jpg",
-    #     "https://cdn.donmai.us/sample/66/a9/__mitake_ran_and_aoba_moca_bang_dream_drawn_by_kiska_mnvy2332__sample-66a950c752fbd4e0d533860a1ce4e683.jpg",
-    #     "https://cdn.donmai.us/sample/d9/5f/__takafuji_kako_idolmaster_and_1_more_drawn_by_east01_06__sample-d95f9166bfb0e74dad8dda3c78713cff.jpg",
-    #     "https://cdn.donmai.us/sample/1a/2d/__imai_lisa_bang_dream_drawn_by_nanami_nunnun_0410__sample-1a2d352075e446d7bb5b5e196cad8e5b.jpg",
-    #     "https://cdn.donmai.us/original/d9/5e/__togawa_sakiko_bang_dream_and_1_more_drawn_by_kanpozhan__d95e5564729dd925a4bcba4433f58159.png",
-    #     "https://cdn.donmai.us/sample/40/d3/__nagasaki_soyo_bang_dream_and_1_more_drawn_by_e20__sample-40d39c975e1462533dc075b45e2eea90.jpg",
-    #     "https://cdn.donmai.us/sample/6b/35/__minato_yukina_bang_dream_drawn_by_kanade_kanade_3344__sample-6b35cb6f1432715b1d899d3979fd5e7b.jpg",
-    #     "https://cdn.donmai.us/sample/a4/2d/__imai_lisa_bang_dream_drawn_by_kanade_kanade_3344__sample-a42d9484330a90f5b3347735d8f41a1a.jpg",
-    #     "https://cdn.donmai.us/sample/28/1f/__misumi_uika_bang_dream_and_1_more_drawn_by_beniyomogi__sample-281fb72d88d7d136f1b79422b2ba5824.jpg",
-    #     "https://cdn.donmai.us/sample/00/07/__ichigaya_arisa_bang_dream_drawn_by_e20__sample-00075aa3d57935ad342e61041f49e961.jpg",
-    #     "https://cdn.donmai.us/sample/d1/7c/__aoba_moca_bang_dream_drawn_by_junji_17__sample-d17cfdbbef732b6b965b56fd06550745.jpg",
-    #     "https://cdn.donmai.us/sample/e4/13/__togawa_sakiko_and_misumi_uika_bang_dream_and_1_more_drawn_by_kawai_akamai__sample-e413325800d88f8d7fa964a3e88c831c.jpg",
-    #     "https://cdn.donmai.us/sample/8b/f9/__shiina_taki_bang_dream_and_1_more_drawn_by_raiden_kdsn3783__sample-8bf9b82f1786d0a12387f6d44a4aea9b.jpg",
-    #     "https://cdn.donmai.us/sample/44/21/__mitake_ran_bang_dream_drawn_by_mihaya_mihaya1818__sample-4421421c0241b47b86174a2eed8cd895.jpg",
-    #     "https://cdn.donmai.us/sample/b3/d8/__tsurumaki_kokoro_bang_dream_drawn_by_temari_rin__sample-b3d8bc572a3b1749bb4a869c718c3882.jpg",
-    #     "https://cdn.donmai.us/sample/d5/57/__mitake_ran_bang_dream_drawn_by_sunnysalt_08__sample-d557994d14b95f0be0b89fe7a8efa63d.jpg",
-    #     "https://cdn.donmai.us/sample/fa/94/__houshou_marine_and_mitake_ran_hololive_and_1_more_drawn_by_sunnysalt_08__sample-fa9442bc14259c7b3ce987609a8b2cc6.jpg",
-    #     "https://cdn.donmai.us/sample/5a/49/__imai_lisa_and_minato_yukina_bang_dream_drawn_by_sunnysalt_08__sample-5a49dba7c3e25246e1736778cd6f0aa2.jpg",
-    #     "https://cdn.donmai.us/sample/55/e5/__imai_lisa_bang_dream_drawn_by_nuruponnu__sample-55e54774a157824a955134ad813f03f0.jpg",
-    #     "https://cdn.donmai.us/sample/57/76/__imai_lisa_and_minato_yukina_bang_dream_drawn_by_shih_lion__sample-577621041a4a6856513d8773a7875d6c.jpg",
-    #     "https://cdn.donmai.us/sample/ff/86/__kawaragi_momoka_girls_band_cry_drawn_by_ayataka_syumimi__sample-ff8604082deef53ebc32914255d56f17.jpg",
-    #     "https://cdn.donmai.us/sample/87/c6/__awa_subaru_girls_band_cry_drawn_by_niaochw__sample-87c67f9b91a13b47f9effb6f9a1ada07.jpg",
-    #     "https://cdn.donmai.us/sample/1c/43/__iseri_nina_and_kawaragi_momoka_girls_band_cry_drawn_by_yanagi_marie__sample-1c43a8fcc0da77dd13ecb66155bfe022.jpg",
-    #     "https://cdn.donmai.us/sample/39/fe/__awa_subaru_girls_band_cry_drawn_by_habsida_habsida_hpy__sample-39fead88541e7e202bb20e9c54a9cbe0.jpg",
-    #     "https://cdn.donmai.us/sample/3d/52/__iseri_nina_and_kawaragi_momoka_girls_band_cry_and_1_more_drawn_by_habsida_habsida_hpy__sample-3d5247c4518bd8c4f0908e9ebb2f2fc2.jpg",
-    #     "https://cdn.donmai.us/sample/88/60/__minase_iori_and_usa_chan_idolmaster_drawn_by_ap_bar__sample-886021936a4118f2c289f8ad623e93f4.jpg",
-    #     "https://cdn.donmai.us/sample/38/d2/__minase_iori_idolmaster_drawn_by_baji_toufuu_bajitohfu__sample-38d27332ee6940b897d6d812c2d06f2e.jpg",
-    #     "https://cdn.donmai.us/sample/40/16/__anyoji_hime_love_live_and_1_more_drawn_by_jin_oihlf__sample-40165e2bbda3855735678442bb806bbd.jpg",
-    #     "https://cdn.donmai.us/original/2d/1c/__mifune_shioriko_love_live_and_1_more_drawn_by_mukiryoku_bato__2d1c4dfe76a2d51b8ccc4435ac6fed39.png",
-    #     "https://cdn.donmai.us/sample/98/dc/__kosaka_honoka_love_live_and_1_more_drawn_by_curakuru__sample-98dc9fe29f079527f11e823cd6b84aba.jpg",
-    #     "https://cdn.donmai.us/sample/6e/ff/__uehara_ayumu_love_live_and_1_more_drawn_by_kurono_pixiv1905129__sample-6eff1af1e07d503df8116e5da0634d3e.jpg",
-    #     "https://cdn.donmai.us/sample/3e/f1/__osaka_shizuku_love_live_and_1_more_drawn_by_satolive20__sample-3ef10a2ca39dfbc99485cce241e9c0b4.jpg",
-    #     "https://cdn.donmai.us/sample/c6/b9/__mia_taylor_love_live_and_1_more_drawn_by_shinonome_sakura__sample-c6b9e9057016951bbb4ece0ef8eda7a2.jpg",
-    #     "https://cdn.donmai.us/sample/cb/47/__shibuya_kanon_love_live_and_1_more_drawn_by_frontrivers_kae__sample-cb472de6863e6c5453af508da85e8795.jpg",
-    #     "https://cdn.donmai.us/sample/59/44/__shibuya_kanon_and_arashi_chisato_love_live_and_1_more_drawn_by_akane_akanene928__sample-5944659e163ee5973deef6fe1a492e84.jpg",
-    #     "https://cdn.donmai.us/sample/50/86/__shibuya_kanon_hazuki_ren_sakurakoji_kinako_and_nanakusa_nanami_love_live_and_1_more_drawn_by_matcha_moti_matcha_427__sample-5086c86acef79799a530feb2af14bd3f.jpg",
-    #     "https://cdn.donmai.us/sample/cc/82/__sakurai_momoka_idolmaster_and_1_more_drawn_by_yoshikirino__sample-cc827754022d0159109aac4267d2beaa.jpg",
-    #     "https://cdn.donmai.us/sample/cd/fc/__sakurai_momoka_idolmaster_and_1_more_drawn_by_dakku_nira597__sample-cdfc4ff6abf43ee4b41139a91b5038a6.jpg",
-    #     "https://cdn.donmai.us/sample/ff/3c/__sagisawa_fumika_idolmaster_and_1_more_drawn_by_karlp346pro__sample-ff3c2b52bda4f199dc625957697d40ff.jpg",
-    #     "https://cdn.donmai.us/sample/fc/d8/__sagisawa_fumika_idolmaster_and_1_more_drawn_by_karlp346pro__sample-fcd8a65e6552110364ff6f9acdd08a83.jpg",
-    #     "https://cdn.donmai.us/sample/69/85/__sagisawa_fumika_idolmaster_and_1_more_drawn_by_karlp346pro__sample-69851615f4ed9e372740ce305d1a91b5.jpg",
-    #     "https://cdn.donmai.us/sample/b3/4c/__sagisawa_fumika_idolmaster_and_1_more_drawn_by_zhi_papercraft8559__sample-b34c5e028319bfc652de66915136b169.jpg",
-    #     "https://cdn.donmai.us/sample/ee/ff/__sagisawa_fumika_idolmaster_and_1_more_drawn_by_tori_2020toryiu__sample-eeff4c0bc18d7f8ee2d971a237a72cfd.jpg",
-    #     "https://cdn.donmai.us/sample/1f/1e/__shirokane_rinko_bang_dream_drawn_by_yue_mao_yukinihime__sample-1f1e4824aba291f07b71b0aed2a1997d.jpg",
-    #     "https://cdn.donmai.us/sample/5e/21/__shirokane_rinko_bang_dream_drawn_by_izami_md__sample-5e2116120169876ac4898c3570fc302b.jpg",
-    #     "https://cdn.donmai.us/sample/89/7b/__shirokane_rinko_bang_dream_drawn_by_sakurahara__sample-897bff4c036753ae57413da2781dd8f5.jpg",
-    #     "https://cdn.donmai.us/sample/75/87/__shirokane_rinko_bang_dream_drawn_by_me_a_r_party428__sample-758734a8a86e9480277ab8e2f91652d2.jpg"        
-    # ]
-    
-   
-    # ✅ ahora cargamos dinámicamente desde Google Sheets
-    imagenes = cargar_imagenes()
-    
+    imagenes = IMAGENES_CACHE  # usar cache
     return render_template('index.html', pedidos=pedidos, comentarios=comentarios, imagenes=imagenes)
-
 
 # --- Registro/Login ---
 @app.route('/register', methods=['POST'])
