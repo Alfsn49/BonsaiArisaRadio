@@ -285,6 +285,101 @@ def extract_link_preview(url):
         }
     except Exception:
         return None
+    
+def send_async_email(msg):
+    with app.app_context():
+        mail.send(msg)
+
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json()
+    email = data.get('email', '').lower()
+    if not email:
+        return {"error": "Se requiere el email"}, 400
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM usuarios WHERE email = %s", (email,))
+            user = cur.fetchone()
+            if not user:
+                return {"error": "Usuario no encontrado"}, 404
+
+            token = str(uuid.uuid4())
+            expiracion = datetime.utcnow() + timedelta(minutes=30)
+
+            cur.execute(
+                "INSERT INTO reset_tokens (user_id, token, expiracion) VALUES (%s, %s, %s)",
+                (user[0], token, expiracion)
+            )
+            conn.commit()
+
+    reset_link = f"https://bonsaiarisaradio.onrender.com/recuperacion?token={token}"
+    html_body = f"<p>Haz click en el enlace para cambiar tu contraseña (válido 30 min):</p><a href='{reset_link}'>{reset_link}</a>"
+
+    msg = Message("Recuperación de contraseña", sender=app.config['MAIL_USERNAME'], recipients=[email])
+    msg.html = html_body
+
+    # Spawn para enviar sin bloquear
+    eventlet.spawn(send_async_email, msg)
+
+    return {"message": "Correo de recuperación enviado"}
+
+
+@app.route('/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('password')
+
+    if not token or not new_password:
+        return {"error": "Faltan campos"}, 400
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT user_id, expiracion FROM reset_tokens WHERE token = %s", (token,))
+            token_data = cur.fetchone()
+            if not token_data:
+                return {"error": "Token inválido"}, 400
+            if datetime.utcnow() > token_data[1]:
+                return {"error": "Token expirado"}, 400
+
+            hashed_password = generate_password_hash(new_password)
+            cur.execute("UPDATE usuarios SET password = %s WHERE id = %s", (hashed_password, token_data[0]))
+            cur.execute("DELETE FROM reset_tokens WHERE token = %s", (token,))
+            conn.commit()
+
+    return {"message": "Contraseña actualizada con éxito"}
+
+
+
+# --- Pedidos/Comentarios ---
+@app.route('/pedido', methods=['POST'])
+def pedido():
+    nombre = request.form['nombre']
+    cancion = request.form['cancion']
+    dedicatoria = request.form.get('dedicatoria', '')
+    artista = request.form.get('artista', '')
+    fecha_hora = datetime.utcnow()
+
+    with get_sqlite_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO pedidos (nombre, cancion, dedicatoria, artista, fecha_hora) VALUES (?, ?, ?, ?, ?)",
+            (nombre, cancion, dedicatoria, artista, fecha_hora)
+        )
+        conn.commit()
+
+    socketio.emit('nuevo_pedido', {
+        'nombre': nombre, 'cancion': cancion, 'dedicatoria': dedicatoria,
+        'artista': artista, 'fecha_hora': fecha_hora.strftime('%Y-%m-%d %H:%M:%S')
+    })
+    return '', 204
+
+@app.route('/recuperacion')
+def about():
+    imagen_url = "https://cdn.donmai.us/sample/9e/fb/__takafuji_kako_idolmaster_and_2_more_drawn_by_papemo368__sample-9efb3f8b6354b1253d6de936db40079a.jpg"
+    return render_template('recuperacion.html', imagen_url=imagen_url)
+
 
 @app.route('/comentario', methods=['POST'])
 def comentario():
